@@ -1,0 +1,1772 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    :root {
+      --purple-bg: #ede7f9;
+      --purple-mid: #c9b8ed;
+      --purple-dark: #6d4fb0;
+      --purple-darker: #5a3f96;
+      --text: #362a4d;
+      --card-bg: #ffffff;
+      --danger: #d9534f;
+      --danger-dark: #b8433f;
+      --success: #3d9a5f;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+      background: var(--purple-bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--purple-dark);
+      color: white;
+      padding: 18px 20px;
+      text-align: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0.5px;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 20px 16px 60px;
+    }
+
+    /* ---------- Tab nav ---------- */
+    .tab-nav {
+      display: flex;
+      gap: 8px;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 14px 16px 0;
+    }
+    .tab-btn {
+      background: var(--purple-mid);
+      color: var(--purple-darker);
+      padding: 10px 16px;
+      border-radius: 8px 8px 0 0;
+      font-size: 13.5px;
+      font-weight: 600;
+    }
+    .tab-btn.active {
+      background: var(--purple-dark);
+      color: white;
+    }
+
+    /* ---------- Loading overlay ---------- */
+    #loadingOverlay {
+      position: fixed;
+      inset: 0;
+      background: var(--purple-bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 5px solid var(--purple-mid);
+      border-top-color: var(--purple-dark);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+      margin-bottom: 16px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #loadingOverlay p { color: var(--purple-darker); font-size: 15px; }
+
+    /* ---------- Cards ---------- */
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 18px;
+      box-shadow: 0 2px 8px rgba(90, 63, 150, 0.12);
+    }
+
+    .card h2 {
+      font-size: 16px;
+      margin: 0 0 14px;
+      color: var(--purple-darker);
+      border-bottom: 2px solid var(--purple-bg);
+      padding-bottom: 8px;
+    }
+
+    .field {
+      margin-bottom: 12px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 12.5px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: var(--purple-darker);
+    }
+
+    .field input, .field select {
+      width: 100%;
+      padding: 10px 10px;
+      border: 1.5px solid var(--purple-mid);
+      border-radius: 8px;
+      font-size: 14px;
+      background: #faf9ff;
+      color: var(--text);
+    }
+
+    .field input:focus, .field select:focus {
+      outline: none;
+      border-color: var(--purple-dark);
+    }
+
+    .field input[readonly] {
+      background: #f1eefa;
+      color: #6a6180;
+    }
+
+    .row2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .autofill-note {
+      font-size: 11.5px;
+      color: #8577a3;
+      margin-top: 2px;
+    }
+
+    /* ---------- Custom GL Code dropdown ---------- */
+    .custom-select {
+      position: relative;
+    }
+
+    .custom-select-display {
+      width: 100%;
+      padding: 10px 10px;
+      border: 1.5px solid var(--purple-mid);
+      border-radius: 8px;
+      font-size: 14px;
+      background: #faf9ff;
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .custom-select-display:focus {
+      outline: none;
+      border-color: var(--purple-dark);
+    }
+
+    .custom-select-display.placeholder {
+      color: #8577a3;
+    }
+
+    .custom-select-display.disabled {
+      pointer-events: none;
+      opacity: 0.5;
+      background: #f1eefa;
+    }
+
+    .custom-select-panel {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      max-height: 260px;
+      overflow-y: auto;
+      background: white;
+      border: 1.5px solid var(--purple-mid);
+      border-radius: 8px;
+      box-shadow: 0 6px 18px rgba(90, 63, 150, 0.22);
+      z-index: 50;
+    }
+
+    .custom-select-panel.open {
+      display: block;
+    }
+
+    .gl-option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 9px 10px;
+      cursor: pointer;
+      border-bottom: 1px solid #f1eefa;
+    }
+
+    .gl-option:last-child { border-bottom: none; }
+
+    .gl-option:hover {
+      background: var(--purple-bg);
+    }
+
+    .gl-option-text {
+      font-size: 13px;
+      line-height: 1.35;
+      flex: 1;
+    }
+
+    .gl-info-btn {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--purple-mid);
+      color: var(--purple-darker);
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .gl-info-btn:hover {
+      background: var(--purple-dark);
+      color: white;
+    }
+
+    .gl-tooltip {
+      position: fixed;
+      max-width: 270px;
+      background: white;
+      border: 1.5px solid var(--purple-mid);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--text);
+      box-shadow: 0 6px 18px rgba(90, 63, 150, 0.28);
+      z-index: 200;
+    }
+
+    .lookup-status {
+      font-size: 12.5px;
+      margin-top: 4px;
+      min-height: 16px;
+    }
+    .lookup-status.found { color: var(--success); }
+    .lookup-status.notfound { color: var(--danger); }
+
+    /* ---------- Barcode scan button + modal ---------- */
+    .code-input-row {
+      display: flex;
+      gap: 8px;
+    }
+    .code-input-row input { flex: 1; }
+    .scan-btn {
+      flex-shrink: 0;
+      padding: 10px 12px;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .scanner-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(54, 42, 77, 0.55);
+      z-index: 500;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .scanner-modal.open { display: flex; }
+
+    .scanner-box {
+      background: white;
+      border-radius: 12px;
+      padding: 24px 18px;
+      width: 100%;
+      max-width: 340px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      text-align: center;
+    }
+    .scanner-box h3 {
+      margin: 0 0 4px;
+      color: var(--purple-darker);
+      font-size: 16px;
+      text-align: center;
+    }
+    .scanner-error {
+      color: var(--danger-dark);
+      font-size: 12.5px;
+      margin-top: 8px;
+      text-align: center;
+      min-height: 16px;
+    }
+
+    /* ---------- Buttons ---------- */
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      padding: 11px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-primary { background: var(--purple-dark); color: white; }
+    .btn-secondary { background: var(--purple-mid); color: var(--purple-darker); }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-success { background: var(--success); color: white; }
+    .btn-full { width: 100%; }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+    .btn-row button { flex: 1; min-width: 120px; }
+
+    /* ---------- Preview / list table ---------- */
+    .preview-empty {
+      color: #8577a3;
+      font-size: 13.5px;
+      text-align: center;
+      padding: 16px 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 7px 6px;
+      border-bottom: 1px solid #eee5fb;
+      white-space: nowrap;
+    }
+
+    th {
+      color: var(--purple-darker);
+      font-size: 11.5px;
+      text-transform: uppercase;
+    }
+
+    .table-scroll { overflow-x: auto; }
+
+    .sap-desc-col {
+      color: #8577a3;
+      font-style: italic;
+      white-space: normal;
+      max-width: 220px;
+    }
+
+    .row-actions button {
+      padding: 5px 8px;
+      font-size: 11.5px;
+      margin-right: 4px;
+      min-width: 0;
+      flex: none;
+    }
+
+    /* ---------- Status banner ---------- */
+    #statusBanner {
+      display: none;
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-size: 13.5px;
+      margin-bottom: 16px;
+    }
+    #statusBanner.error {
+      display: block;
+      background: #fdecea;
+      color: var(--danger-dark);
+      border: 1px solid #f5c6c3;
+    }
+    #statusBanner.ok {
+      display: block;
+      background: #e8f6ec;
+      color: var(--success);
+      border: 1px solid #bfe6cc;
+    }
+
+    #submitCount {
+      font-size: 13px;
+      color: var(--purple-darker);
+      margin-bottom: 10px;
+    }
+
+    /* ---------- Pending GI banner ---------- */
+    #pendingGIBanner {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-size: 13.5px;
+      margin-bottom: 16px;
+      background: #fff4e0;
+      color: #8a5a00;
+      border: 1px solid #f5dca6;
+    }
+    #pendingGIBanner .pending-icon {
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="loadingOverlay">
+    <div class="spinner"></div>
+    <p id="loadingText">Loading master list, please wait...</p>
+  </div>
+
+  <header>
+    <h1>SHBN - Own Use Log</h1>
+  </header>
+
+  <div class="tab-nav" id="tabNav" style="display:none;">
+    <button class="tab-btn active" id="navEntryBtn" type="button">New Entry</button>
+    <button class="tab-btn" id="navPendingBtn" type="button" style="display:none;">Pending Entry</button>
+    <button class="tab-btn" id="navAdminBtn" type="button" style="display:none;">Admin</button>
+  </div>
+
+  <div class="container" id="passwordScreen" style="display:none; max-width: 380px;">
+    <div class="card" style="margin-top: 60px; text-align:center;">
+      <h2 style="border:none;">Enter Password</h2>
+      <div class="field" style="text-align:left;">
+        <label>Password</label>
+        <input type="password" id="passwordInput" placeholder="Enter password" autocomplete="off">
+      </div>
+      <div id="passwordError" style="color:var(--danger-dark); font-size:12.5px; min-height:16px; margin-bottom:6px;"></div>
+      <button class="btn-primary btn-full" id="passwordSubmitBtn" type="button">Continue</button>
+    </div>
+  </div>
+
+  <div class="container" id="mainContent" style="display:none;">
+
+    <div id="pendingGIBanner">
+      <span class="pending-icon">⏳</span>
+      <span id="pendingGIText"></span>
+    </div>
+
+    <div id="statusBanner"></div>
+
+    <!-- ================= NEW ENTRY TAB ================= -->
+    <div id="entryTab">
+      <div class="card">
+        <h2>New Entry</h2>
+
+        <div class="field">
+          <label>Product Code (EAN / UPC)</label>
+          <div class="code-input-row">
+            <input type="text" id="productCode" placeholder="Scan or type product code" autocomplete="off">
+            <button type="button" id="openScannerBtn" class="btn-secondary scan-btn" title="Scan barcode">📷 Scan</button>
+          </div>
+          <div class="lookup-status" id="lookupStatus"></div>
+          <div id="noMatchBox" style="display:none; margin-top:8px; padding:10px; background:#fdecea; border:1px solid #f5c6c3; border-radius:8px;">
+            <div style="font-size:12.5px; color:var(--danger-dark); margin-bottom:8px;">
+              This product code was not found in the Master List. Please recheck the code for typos or scanning errors.
+            </div>
+            <button class="btn-danger" id="proceedAnywayBtn" type="button" style="width:100%;">Proceed Anyway</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Description</label>
+          <input type="text" id="description" readonly placeholder="Auto-filled from Master List">
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <label>Material</label>
+            <input type="text" id="material" readonly>
+          </div>
+          <div class="field">
+            <label>UOM</label>
+            <input type="text" id="uom" readonly>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Quantity</label>
+          <input type="number" id="quantity" min="0" step="1" placeholder="Enter quantity">
+        </div>
+
+        <div class="field">
+          <label>GL Code</label>
+          <div class="custom-select" id="glCodeWrapper">
+            <div class="custom-select-display placeholder" id="glCodeDisplay" tabindex="0">-- Select GL Code --</div>
+            <div class="custom-select-panel" id="glCodePanel"></div>
+          </div>
+          <input type="hidden" id="glCode" value="">
+        </div>
+
+        <div class="field">
+          <label>Claim for Department</label>
+          <select id="claimForDepartment">
+            <option value="">-- Select Department --</option>
+            <option value="FOOD">FOOD</option>
+            <option value="NONFOOD">NONFOOD</option>
+            <option value="FRESH MARKET">FRESH MARKET</option>
+            <option value="HARDLINE">HARDLINE</option>
+            <option value="SOFTLINE">SOFTLINE</option>
+            <option value="MAINTENANCE">MAINTENANCE</option>
+            <option value="ARTIST">ARTIST</option>
+            <option value="OFFICE">OFFICE</option>
+            <option value="CLEANER">CLEANER</option>
+          </select>
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <label>Claim By</label>
+            <input type="text" id="claimBy" placeholder="Name">
+          </div>
+          <div class="field">
+            <label>Submitted By</label>
+            <input type="text" id="submittedBy" placeholder="Name">
+          </div>
+        </div>
+
+        <div class="autofill-note">Plant: 1008 &nbsp;|&nbsp; Sloc: 1000 &nbsp;|&nbsp; Cost Center: 10100800 (auto-filled)</div>
+
+        <div class="btn-row">
+          <button class="btn-secondary" id="clearFormBtn" type="button">Clear</button>
+          <button class="btn-primary" id="addEntryBtn" type="button">Add to List</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Entries to Submit</h2>
+        <div id="submitCount"></div>
+        <div class="table-scroll">
+          <table id="previewTable">
+            <thead>
+              <tr>
+                <th>Code</th><th>Description</th><th>Material</th><th>Qty</th><th>UOM</th>
+                <th>GL Code</th><th>Dept</th><th>Claim By</th><th>Submitted By</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="previewBody"></tbody>
+          </table>
+          <div class="preview-empty" id="previewEmpty">No entries added yet.</div>
+        </div>
+
+        <div class="btn-row" style="margin-top:14px;">
+          <button class="btn-danger" id="cancelBtn" type="button">Cancel</button>
+          <button class="btn-success" id="submitAllBtn" type="button" disabled>Submit All</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= PENDING ENTRY TAB ================= -->
+    <div id="pendingTab" style="display:none;">
+      <div class="card" id="pendingListCard">
+        <h2>Pending Entries</h2>
+        <div class="row2" style="align-items:end;">
+          <div class="field" style="margin-bottom:0;">
+            <label>Rows per page</label>
+            <select id="pendingPageSize">
+              <option value="10">10</option>
+              <option value="20" selected>20</option>
+              <option value="50">50</option>
+              <option value="9999">All</option>
+            </select>
+          </div>
+          <div style="text-align:right;">
+            <button class="btn-secondary" id="refreshPendingBtn" type="button">Refresh</button>
+          </div>
+        </div>
+        <div class="table-scroll" style="margin-top:12px;">
+          <table id="pendingTable">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="pendingSelectAll"></th>
+                <th>Date</th><th>Code</th><th>Description</th><th>Material</th><th>Qty</th><th>UOM</th><th>Dept</th><th>Claim By</th>
+              </tr>
+            </thead>
+            <tbody id="pendingBody"></tbody>
+          </table>
+          <div class="preview-empty" id="pendingEmpty">No pending entries.</div>
+        </div>
+        <div class="btn-row" style="margin-top:10px; align-items:center;">
+          <button class="btn-secondary" id="pendingPrevPage" type="button">Prev</button>
+          <span id="pendingPageInfo" style="flex:2; text-align:center; align-self:center; font-size:13px;"></span>
+          <button class="btn-secondary" id="pendingNextPage" type="button">Next</button>
+        </div>
+        <div class="btn-row" style="margin-top:14px;">
+          <button class="btn-primary btn-full" id="pendingContinueBtn" type="button" disabled>Continue (<span id="pendingSelectedCount">0</span> selected)</button>
+        </div>
+      </div>
+
+      <div class="card" id="sapBatchCard" style="display:none;">
+        <h2>Copy to SAP</h2>
+        <div class="row2" style="align-items:end;">
+          <div class="field" style="margin-bottom:0;">
+            <label>Rows per batch</label>
+            <input type="number" id="sapRowsPerBatch" value="7" min="1">
+          </div>
+          <div style="font-size:13px; text-align:right; align-self:end;">
+            <span id="sapBatchInfo"></span>
+          </div>
+        </div>
+        <div class="table-scroll" style="margin-top:12px;">
+          <table id="sapTable">
+            <thead>
+              <tr><th>Material</th><th>Description</th><th>Qty</th><th>UOM</th><th>Plant</th><th>Sloc</th><th>Cost Center</th><th>GL Code</th></tr>
+            </thead>
+            <tbody id="sapBody"></tbody>
+          </table>
+        </div>
+        <div class="autofill-note">Description is shown for reference only - it is not included in any Copy Batch.</div>
+        <div class="btn-row" style="margin-top:10px;">
+          <button class="btn-secondary" id="sapPrevBatch" type="button">Prev</button>
+          <button class="btn-secondary" id="sapNextBatch" type="button">Next</button>
+        </div>
+        <div class="btn-row" style="margin-top:10px;">
+          <button class="btn-secondary" id="copyBatch1" type="button">Copy Batch 1 (Material)</button>
+          <button class="btn-secondary" id="copyBatch2" type="button">Copy Batch 2 (Qty/UOM/Plant/Sloc)</button>
+          <button class="btn-secondary" id="copyBatch3" type="button">Copy Batch 3 (Cost Center/GL)</button>
+        </div>
+        <div id="copyStatus" style="font-size:12.5px; color:var(--success); min-height:16px; margin-top:6px;"></div>
+
+        <div class="field" style="margin-top:16px;">
+          <label>Material Document</label>
+          <input type="text" id="materialDocumentInput" placeholder="Enter material document number">
+        </div>
+        <div class="field">
+          <label>Key In By</label>
+          <input type="text" id="keyInByInput" placeholder="Enter your name">
+        </div>
+        <div class="btn-row">
+          <button class="btn-danger" id="sapBackBtn" type="button">Back</button>
+          <button class="btn-success" id="sapSubmitBtn" type="button">Submit</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= ADMIN TAB ================= -->
+    <div id="adminTab" style="display:none;">
+      <div class="card">
+        <h2>Admin - Pending Entries</h2>
+        <div style="text-align:right; margin-bottom:8px;">
+          <button class="btn-secondary" id="refreshAdminBtn" type="button">Refresh</button>
+        </div>
+        <div class="table-scroll">
+          <table id="adminTable">
+            <thead>
+              <tr><th>Date</th><th>Code</th><th>Description</th><th>Material</th><th>Qty</th><th>UOM</th><th>GL Code</th><th>Dept</th><th>Claim By</th><th>Submitted By</th><th></th></tr>
+            </thead>
+            <tbody id="adminBody"></tbody>
+          </table>
+          <div class="preview-empty" id="adminEmpty">No pending entries.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <input type="file" id="barcodeFileInput" accept="image/*" capture="environment" style="display:none;">
+  <div id="reader" style="display:none;"></div>
+
+  <div id="scannerModal" class="scanner-modal">
+    <div class="scanner-box">
+      <h3 id="scannerTitle">Reading barcode...</h3>
+      <div class="spinner" id="scannerSpinner" style="margin: 10px auto;"></div>
+      <div id="scannerError" class="scanner-error"></div>
+      <div class="btn-row" id="scannerRetryRow" style="display:none;">
+        <button class="btn-secondary" id="retryScannerBtn" type="button">Retake Photo</button>
+        <button class="btn-danger" id="closeScannerBtn" type="button">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="editModal" class="scanner-modal">
+    <div class="scanner-box" style="max-width:420px; text-align:left;">
+      <h3 style="text-align:left;">Edit Entry</h3>
+      <div class="field"><label>Product Code</label><input type="text" id="editProductCode"></div>
+      <div class="field"><label>Description</label><input type="text" id="editDescription"></div>
+      <div class="row2">
+        <div class="field"><label>Material</label><input type="text" id="editMaterial"></div>
+        <div class="field"><label>UOM</label><input type="text" id="editUom"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Quantity</label><input type="number" id="editQuantity"></div>
+        <div class="field"><label>GL Code</label><input type="text" id="editGlCode"></div>
+      </div>
+      <div class="field"><label>Claim for Department</label><input type="text" id="editDepartment"></div>
+      <div class="row2">
+        <div class="field"><label>Claim By</label><input type="text" id="editClaimBy"></div>
+        <div class="field"><label>Submitted By</label><input type="text" id="editSubmittedBy"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-secondary" id="editCancelBtn" type="button">Cancel</button>
+        <button class="btn-primary" id="editSaveBtn" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- State ----------
+    var masterMap = {};   // ean -> {material, description, uom}
+    var glCodes = [];
+    var defaults = {};
+    var queue = [];       // entries pending submission (New Entry tab)
+    var editIndex = -1;   // -1 = not editing, else index in queue being edited
+    var apiKey = '';      // whatever the person types on the password screen - sent as x-api-key and checked server-side
+
+    // ---------- Vercel API bridge ----------
+    // Set this to your Vercel project's API base URL (no trailing slash),
+    // e.g. https://your-project.vercel.app/api
+    var VERCEL_API_URL = 'https://shbn-own-use-log-v2.vercel.app/api';
+
+    function callGet(action) {
+      return fetch(VERCEL_API_URL + '/' + action, {
+        headers: { 'x-api-key': apiKey }
+      })
+        .then(handleApiResponse);
+    }
+
+    function callPost(action, payload) {
+      return fetch(VERCEL_API_URL + '/' + action, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+        body: JSON.stringify(payload)
+      })
+        .then(handleApiResponse);
+    }
+
+    function handleApiResponse(res) {
+      if (res.status === 401) {
+        var authErr = new Error('Incorrect password.');
+        authErr.status = 401;
+        throw authErr;
+      }
+      return res.json().then(checkApiResult);
+    }
+
+    function checkApiResult(result) {
+      if (result && result.status === 'error') {
+        throw new Error(result.message || 'Server error');
+      }
+      return result;
+    }
+
+    // ---------- Pending GI banner ----------
+    function renderPendingGIBanner(count) {
+      var banner = document.getElementById('pendingGIBanner');
+      var textEl = document.getElementById('pendingGIText');
+      if (!count || count <= 0) {
+        banner.style.display = 'none';
+        return;
+      }
+      textEl.textContent = count + ' item' + (count === 1 ? '' : 's') + ' pending GI';
+      banner.style.display = 'flex';
+    }
+
+    function escapeHtml(str) {
+      if (str === undefined || str === null) return '';
+      return String(str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // ---------- Custom GL Code dropdown ----------
+    function buildGlCodePanel() {
+      var panel = document.getElementById('glCodePanel');
+      panel.innerHTML = '';
+      glCodes.forEach(function (g) {
+        var row = document.createElement('div');
+        row.className = 'gl-option';
+        row.dataset.code = g.code;
+
+        var textSpan = document.createElement('span');
+        textSpan.className = 'gl-option-text';
+        textSpan.textContent = g.code + ' - ' + g.desc;
+        textSpan.addEventListener('click', function () {
+          setGlCodeValue(g.code, g.desc);
+          closeGlCodePanel();
+        });
+
+        var infoBtn = document.createElement('button');
+        infoBtn.type = 'button';
+        infoBtn.className = 'gl-info-btn';
+        infoBtn.textContent = '?';
+        infoBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          showGlTooltip(infoBtn, g.details || 'No further details available.');
+        });
+
+        row.appendChild(textSpan);
+        row.appendChild(infoBtn);
+        panel.appendChild(row);
+      });
+    }
+
+    function setGlCodeValue(code, desc) {
+      document.getElementById('glCode').value = code;
+      var display = document.getElementById('glCodeDisplay');
+      if (code) {
+        display.textContent = code + ' - ' + desc;
+        display.classList.remove('placeholder');
+      } else {
+        display.textContent = '-- Select GL Code --';
+        display.classList.add('placeholder');
+      }
+    }
+
+    function openGlCodePanel() {
+      document.getElementById('glCodePanel').classList.add('open');
+    }
+    function closeGlCodePanel() {
+      document.getElementById('glCodePanel').classList.remove('open');
+    }
+    function toggleGlCodePanel() {
+      var panel = document.getElementById('glCodePanel');
+      if (panel.classList.contains('open')) {
+        closeGlCodePanel();
+      } else {
+        openGlCodePanel();
+      }
+    }
+
+    document.getElementById('glCodeDisplay').addEventListener('click', function () {
+      if (this.classList.contains('disabled')) return;
+      toggleGlCodePanel();
+    });
+    document.getElementById('glCodeDisplay').addEventListener('keydown', function (e) {
+      if ((e.key === 'Enter' || e.key === ' ') && !this.classList.contains('disabled')) {
+        e.preventDefault();
+        toggleGlCodePanel();
+      }
+    });
+
+    var glTooltipEl = null;
+    function showGlTooltip(anchorEl, text) {
+      removeGlTooltip();
+      var tip = document.createElement('div');
+      tip.className = 'gl-tooltip';
+      tip.textContent = text;
+      document.body.appendChild(tip);
+
+      var rect = anchorEl.getBoundingClientRect();
+      var tipWidth = tip.offsetWidth;
+      var left = rect.right - tipWidth;
+      if (left < 8) left = 8;
+      if (left + tipWidth > window.innerWidth - 8) left = window.innerWidth - tipWidth - 8;
+      var top = rect.bottom + 6;
+      if (top + tip.offsetHeight > window.innerHeight - 8) {
+        top = rect.top - tip.offsetHeight - 6;
+      }
+      tip.style.left = left + 'px';
+      tip.style.top = top + 'px';
+
+      glTooltipEl = tip;
+    }
+    function removeGlTooltip() {
+      if (glTooltipEl && glTooltipEl.parentNode) {
+        glTooltipEl.parentNode.removeChild(glTooltipEl);
+      }
+      glTooltipEl = null;
+    }
+
+    // Close the GL code panel and any open tooltip when tapping elsewhere on screen
+    document.addEventListener('click', function (e) {
+      var wrapper = document.getElementById('glCodeWrapper');
+      if (wrapper && !wrapper.contains(e.target)) {
+        closeGlCodePanel();
+      }
+      if (glTooltipEl && !glTooltipEl.contains(e.target) && !e.target.classList.contains('gl-info-btn')) {
+        removeGlTooltip();
+      }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        closeGlCodePanel();
+        removeGlTooltip();
+      }
+    });
+
+    // Show the password screen immediately. Unlike the old Apps Script
+    // version, there's no data prefetch here - the password IS the API key
+    // now, so nothing can be fetched until it's entered. This is actually a
+    // small security improvement: master list data is no longer reachable
+    // by anyone who loads the page before authenticating.
+    document.getElementById('loadingOverlay').style.display = 'none';
+    document.getElementById('passwordScreen').style.display = 'block';
+    document.getElementById('passwordInput').focus();
+
+    function onInitSuccess(data) {
+      data.masterList.forEach(function (row) {
+        masterMap[row.ean] = row;
+      });
+      glCodes = data.glCodes;
+      defaults = data.defaults;
+
+      buildGlCodePanel();
+      renderPendingGIBanner(data.pendingGI);
+    }
+
+    function revealMainContent() {
+      document.getElementById('passwordScreen').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'block';
+      document.getElementById('tabNav').style.display = 'flex';
+      document.getElementById('navPendingBtn').style.display = 'inline-block';
+      document.getElementById('navAdminBtn').style.display = 'inline-block';
+      switchTab('entry');
+    }
+
+    // ---------- Password gate ----------
+    function checkPassword() {
+      var val = document.getElementById('passwordInput').value.trim();
+      if (!val) return;
+      apiKey = val;
+
+      var btn = document.getElementById('passwordSubmitBtn');
+      var errEl = document.getElementById('passwordError');
+      errEl.textContent = '';
+      btn.disabled = true;
+      btn.textContent = 'Checking...';
+      document.getElementById('passwordInput').disabled = true;
+
+      callGet('init')
+        .then(function (data) {
+          onInitSuccess(data);
+          revealMainContent();
+        })
+        .catch(function (err) {
+          btn.disabled = false;
+          btn.textContent = 'Continue';
+          document.getElementById('passwordInput').disabled = false;
+          if (err && err.status === 401) {
+            errEl.textContent = 'Incorrect password. Please try again.';
+          } else {
+            errEl.textContent = 'Could not connect: ' + (err && err.message ? err.message : 'unknown error');
+          }
+          document.getElementById('passwordInput').value = '';
+          document.getElementById('passwordInput').focus();
+        });
+    }
+
+    document.getElementById('passwordSubmitBtn').addEventListener('click', checkPassword);
+    document.getElementById('passwordInput').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); checkPassword(); }
+    });
+
+    // ---------- Tab switching ----------
+    function switchTab(tab) {
+      document.getElementById('entryTab').style.display = tab === 'entry' ? 'block' : 'none';
+      document.getElementById('pendingTab').style.display = tab === 'pending' ? 'block' : 'none';
+      document.getElementById('adminTab').style.display = tab === 'admin' ? 'block' : 'none';
+
+      document.getElementById('navEntryBtn').classList.toggle('active', tab === 'entry');
+      document.getElementById('navPendingBtn').classList.toggle('active', tab === 'pending');
+      document.getElementById('navAdminBtn').classList.toggle('active', tab === 'admin');
+
+      if (tab === 'pending') loadPendingEntries();
+      if (tab === 'admin') loadAdminEntries();
+    }
+
+    document.getElementById('navEntryBtn').addEventListener('click', function () { switchTab('entry'); });
+    document.getElementById('navPendingBtn').addEventListener('click', function () { switchTab('pending'); });
+    document.getElementById('navAdminBtn').addEventListener('click', function () { switchTab('admin'); });
+
+    // ---------- Auto-caps on text inputs ----------
+    ['productCode', 'claimBy', 'submittedBy', 'editProductCode', 'editClaimBy', 'editSubmittedBy'].forEach(function (id) {
+      document.getElementById(id).addEventListener('input', function (e) {
+        var pos = e.target.selectionStart;
+        e.target.value = e.target.value.toUpperCase();
+        e.target.setSelectionRange(pos, pos);
+      });
+    });
+
+    // ---------- Product code lookup ----------
+    document.getElementById('productCode').addEventListener('blur', doLookup);
+    document.getElementById('productCode').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); doLookup(); }
+    });
+
+    // ---------- Barcode scanner (photo-capture based) ----------
+    // Note: Apps Script web apps run inside a sandboxed iframe that blocks
+    // live camera streaming (getUserMedia) without ever prompting for
+    // permission. Using a file input with capture="environment" instead
+    // opens the phone's native camera app directly, which works reliably
+    // here - the photo is then decoded locally.
+    var html5QrCode = null;
+
+    document.getElementById('openScannerBtn').addEventListener('click', function () {
+      if (typeof Html5Qrcode === 'undefined') {
+        alert('The barcode scanner could not load (this can happen if a browser privacy or tracking-protection feature blocked it). Please type the product code manually instead.');
+        return;
+      }
+      document.getElementById('barcodeFileInput').value = ''; // allow re-selecting the same photo
+      document.getElementById('barcodeFileInput').click();
+    });
+
+    document.getElementById('barcodeFileInput').addEventListener('change', function (e) {
+      var file = e.target.files && e.target.files[0];
+      if (!file) return;
+      decodeBarcodeFromFile(file);
+    });
+
+    document.getElementById('retryScannerBtn').addEventListener('click', function () {
+      document.getElementById('barcodeFileInput').click();
+    });
+
+    document.getElementById('closeScannerBtn').addEventListener('click', closeScanner);
+
+    function decodeBarcodeFromFile(file) {
+      var modal = document.getElementById('scannerModal');
+      var title = document.getElementById('scannerTitle');
+      var spinner = document.getElementById('scannerSpinner');
+      var errEl = document.getElementById('scannerError');
+      var retryRow = document.getElementById('scannerRetryRow');
+
+      modal.classList.add('open');
+      title.textContent = 'Reading barcode...';
+      spinner.style.display = 'block';
+      errEl.textContent = '';
+      retryRow.style.display = 'none';
+
+      if (typeof Html5Qrcode === 'undefined') {
+        spinner.style.display = 'none';
+        title.textContent = 'Scanner unavailable';
+        errEl.textContent = 'Could not load the scanner library. Please type the code manually.';
+        retryRow.style.display = 'flex';
+        return;
+      }
+
+      if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode('reader');
+      }
+
+      html5QrCode.scanFile(file, false)
+        .then(function (decodedText) {
+          closeScanner();
+          var input = document.getElementById('productCode');
+          input.value = decodedText.trim().toUpperCase();
+          doLookup();
+        })
+        .catch(function (err) {
+          spinner.style.display = 'none';
+          title.textContent = 'No barcode found';
+          errEl.textContent = 'Could not read a barcode in that photo. Try getting closer, better lighting, or type the code manually.';
+          retryRow.style.display = 'flex';
+        });
+    }
+
+    function closeScanner() {
+      document.getElementById('scannerModal').classList.remove('open');
+    }
+
+    var manualMode = false; // true once user clicks "Proceed Anyway" without a match
+    var lockedFieldIds = ['quantity', 'claimForDepartment', 'claimBy', 'submittedBy'];
+
+    function setLockedFieldsDisabled(disabled) {
+      lockedFieldIds.forEach(function (id) {
+        document.getElementById(id).disabled = disabled;
+      });
+      var glDisplay = document.getElementById('glCodeDisplay');
+      if (disabled) {
+        glDisplay.classList.add('disabled');
+        closeGlCodePanel();
+      } else {
+        glDisplay.classList.remove('disabled');
+      }
+    }
+
+    function doLookup() {
+      var code = document.getElementById('productCode').value.trim();
+      var statusEl = document.getElementById('lookupStatus');
+      var descEl = document.getElementById('description');
+      manualMode = false;
+      document.getElementById('noMatchBox').style.display = 'none';
+      descEl.readOnly = true;
+
+      if (!code) {
+        statusEl.textContent = '';
+        descEl.value = '';
+        document.getElementById('material').value = '';
+        document.getElementById('uom').value = '';
+        setLockedFieldsDisabled(false);
+        return;
+      }
+
+      var match = masterMap[code];
+      if (match) {
+        descEl.value = match.description;
+        document.getElementById('material').value = match.material;
+        document.getElementById('uom').value = match.uom;
+        statusEl.textContent = 'Match found ✓';
+        statusEl.className = 'lookup-status found';
+        setLockedFieldsDisabled(false);
+      } else {
+        descEl.value = '';
+        document.getElementById('material').value = '';
+        document.getElementById('uom').value = '';
+        statusEl.textContent = '';
+        document.getElementById('noMatchBox').style.display = 'block';
+        setLockedFieldsDisabled(true);
+      }
+    }
+
+    document.getElementById('proceedAnywayBtn').addEventListener('click', function () {
+      manualMode = true;
+      var descEl = document.getElementById('description');
+      descEl.readOnly = false;
+      descEl.placeholder = 'Enter description manually to continue';
+      descEl.focus();
+      document.getElementById('noMatchBox').style.display = 'none';
+      document.getElementById('lookupStatus').textContent = 'No master list match - manual entry mode. Fill in Description to continue.';
+      document.getElementById('lookupStatus').className = 'lookup-status notfound';
+      setLockedFieldsDisabled(true); // stays locked until Description is filled in
+    });
+
+    document.getElementById('description').addEventListener('input', function () {
+      if (!manualMode) return;
+      var hasText = this.value.trim().length > 0;
+      setLockedFieldsDisabled(!hasText);
+      if (hasText) {
+        document.getElementById('lookupStatus').textContent = 'Manual entry - proceeding without Master List match.';
+      }
+    });
+
+    // ---------- Add / Edit entry ----------
+    document.getElementById('addEntryBtn').addEventListener('click', function () {
+      var code = document.getElementById('productCode').value.trim();
+      var description = document.getElementById('description').value;
+      var material = document.getElementById('material').value;
+      var uom = document.getElementById('uom').value;
+      var quantity = document.getElementById('quantity').value;
+      var glCode = document.getElementById('glCode').value;
+      var claimForDepartment = document.getElementById('claimForDepartment').value.trim();
+      var claimBy = document.getElementById('claimBy').value.trim();
+      var submittedBy = document.getElementById('submittedBy').value.trim();
+
+      if (!code) {
+        alert('Please enter a product code.');
+        return;
+      }
+      if (!masterMap[code] && !manualMode) {
+        alert('This product code was not found in the Master List. Recheck it, or click "Proceed Anyway" to enter it manually.');
+        return;
+      }
+      if (!masterMap[code] && manualMode && !description) {
+        alert('Please fill in the Description before continuing.');
+        return;
+      }
+      if (!quantity || Number(quantity) <= 0) {
+        alert('Please enter a valid quantity.');
+        return;
+      }
+      if (!glCode) {
+        alert('Please select a GL Code.');
+        return;
+      }
+      if (!claimForDepartment || !claimBy || !submittedBy) {
+        alert('Please fill in Claim for Department, Claim By, and Submitted By.');
+        return;
+      }
+
+      var entry = {
+        productCode: code,
+        description: description,
+        material: material,
+        quantity: quantity,
+        uom: uom,
+        glCode: glCode,
+        claimForDepartment: claimForDepartment,
+        claimBy: claimBy,
+        submittedBy: submittedBy,
+        matched: !!masterMap[code]
+      };
+
+      if (editIndex >= 0) {
+        queue[editIndex] = entry;
+        editIndex = -1;
+        document.getElementById('addEntryBtn').textContent = 'Add to List';
+      } else {
+        queue.push(entry);
+      }
+
+      renderPreview();
+      clearForm();
+    });
+
+    document.getElementById('clearFormBtn').addEventListener('click', clearForm);
+
+    function clearForm() {
+      document.getElementById('productCode').value = '';
+      var descEl = document.getElementById('description');
+      descEl.value = '';
+      descEl.readOnly = true;
+      descEl.placeholder = 'Auto-filled from Master List';
+      document.getElementById('material').value = '';
+      document.getElementById('uom').value = '';
+      document.getElementById('quantity').value = '';
+      setGlCodeValue('', '');
+      document.getElementById('claimForDepartment').value = '';
+      document.getElementById('claimBy').value = '';
+      document.getElementById('submittedBy').value = '';
+      document.getElementById('lookupStatus').textContent = '';
+      document.getElementById('noMatchBox').style.display = 'none';
+      manualMode = false;
+      setLockedFieldsDisabled(false);
+      editIndex = -1;
+      document.getElementById('addEntryBtn').textContent = 'Add to List';
+    }
+
+    // ---------- Preview rendering ----------
+    function renderPreview() {
+      var body = document.getElementById('previewBody');
+      var empty = document.getElementById('previewEmpty');
+      var countEl = document.getElementById('submitCount');
+      var submitBtn = document.getElementById('submitAllBtn');
+      body.innerHTML = '';
+
+      if (queue.length === 0) {
+        empty.style.display = 'block';
+        countEl.textContent = '';
+        submitBtn.disabled = true;
+        return;
+      }
+
+      empty.style.display = 'none';
+      countEl.textContent = queue.length + ' entrie(s) ready to submit';
+      submitBtn.disabled = false;
+
+      queue.forEach(function (e, i) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td>' + escapeHtml(e.productCode) + '</td>' +
+          '<td>' + escapeHtml(e.description) + '</td>' +
+          '<td>' + escapeHtml(e.material) + '</td>' +
+          '<td>' + escapeHtml(e.quantity) + '</td>' +
+          '<td>' + escapeHtml(e.uom) + '</td>' +
+          '<td>' + escapeHtml(e.glCode) + '</td>' +
+          '<td>' + escapeHtml(e.claimForDepartment) + '</td>' +
+          '<td>' + escapeHtml(e.claimBy) + '</td>' +
+          '<td>' + escapeHtml(e.submittedBy) + '</td>' +
+          '<td class="row-actions"></td>';
+
+        var actionsTd = tr.querySelector('.row-actions');
+
+        var editBtn = document.createElement('button');
+        editBtn.textContent = 'Edit';
+        editBtn.className = 'btn-secondary';
+        editBtn.addEventListener('click', function () { editEntry(i); });
+
+        var delBtn = document.createElement('button');
+        delBtn.textContent = 'Delete';
+        delBtn.className = 'btn-danger';
+        delBtn.addEventListener('click', function () { deleteEntry(i); });
+
+        actionsTd.appendChild(editBtn);
+        actionsTd.appendChild(delBtn);
+        body.appendChild(tr);
+      });
+    }
+
+    function editEntry(i) {
+      var e = queue[i];
+      var descEl = document.getElementById('description');
+      document.getElementById('productCode').value = e.productCode;
+      descEl.value = e.description;
+      document.getElementById('material').value = e.material;
+      document.getElementById('uom').value = e.uom;
+      document.getElementById('quantity').value = e.quantity;
+      var glMatch = glCodes.find(function (g) { return g.code === e.glCode; });
+      setGlCodeValue(e.glCode, glMatch ? glMatch.desc : '');
+      document.getElementById('claimForDepartment').value = e.claimForDepartment;
+      document.getElementById('claimBy').value = e.claimBy;
+      document.getElementById('submittedBy').value = e.submittedBy;
+
+      var isMatched = !!masterMap[e.productCode];
+      document.getElementById('noMatchBox').style.display = 'none';
+      setLockedFieldsDisabled(false);
+      if (isMatched) {
+        manualMode = false;
+        descEl.readOnly = true;
+        document.getElementById('lookupStatus').textContent = 'Match found ✓';
+        document.getElementById('lookupStatus').className = 'lookup-status found';
+      } else {
+        manualMode = true;
+        descEl.readOnly = false;
+        document.getElementById('lookupStatus').textContent = 'Manual entry - proceeding without Master List match.';
+        document.getElementById('lookupStatus').className = 'lookup-status notfound';
+      }
+
+      editIndex = i;
+      document.getElementById('addEntryBtn').textContent = 'Update Entry';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function deleteEntry(i) {
+      if (!confirm('Delete this entry?')) return;
+      queue.splice(i, 1);
+      if (editIndex === i) clearForm();
+      renderPreview();
+    }
+
+    // ---------- Cancel ----------
+    document.getElementById('cancelBtn').addEventListener('click', function () {
+      if (queue.length === 0) { clearForm(); return; }
+      if (!confirm('This will clear all ' + queue.length + ' pending entries. Continue?')) return;
+      queue = [];
+      renderPreview();
+      clearForm();
+      showStatus('', '');
+    });
+
+    // ---------- Submit ----------
+    document.getElementById('submitAllBtn').addEventListener('click', function () {
+      if (queue.length === 0) return;
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+      showStatus('', '');
+
+      callPost('submit-entries', { entries: queue })
+        .then(function (result) {
+          btn.disabled = false;
+          btn.textContent = 'Submit All';
+          showStatus('ok', 'Submitted ' + result.count + ' entrie(s) to "' + result.sheet + '" at ' + result.timestamp + '.');
+          queue = [];
+          renderPreview();
+          renderPendingGIBanner(result.pendingGI);
+        })
+        .catch(function (err) {
+          // Keep the interface / queue exactly as-is so the user can retry or cancel
+          btn.disabled = false;
+          btn.textContent = 'Submit All';
+          showStatus('error', 'Connection problem: could not submit (' +
+            (err && err.message ? err.message : 'unknown error') +
+            '). Your entries are still saved below - try Submit All again, or press Cancel to discard.');
+        });
+    });
+
+    function showStatus(type, message) {
+      var banner = document.getElementById('statusBanner');
+      if (!type) {
+        banner.className = '';
+        banner.style.display = 'none';
+        banner.textContent = '';
+        return;
+      }
+      banner.className = type;
+      banner.textContent = message;
+    }
+
+    // ==================================================================
+    // ================= PENDING ENTRY TAB (SAP GI flow) ================
+    // ==================================================================
+
+    var pendingEntries = [];      // all pending rows from server
+    var pendingPage = 0;
+    var selectedKeys = {};        // key: entry id -> entry object
+    var sapSelected = [];         // entries carried into the Copy to SAP screen
+    var sapBatchIndex = 0;
+
+    function entryKey(e) { return e.id; }
+
+    function loadPendingEntries() {
+      document.getElementById('pendingListCard').style.display = 'block';
+      document.getElementById('sapBatchCard').style.display = 'none';
+      document.getElementById('pendingBody').innerHTML =
+        '<tr><td colspan="9" style="text-align:center; color:#8577a3;">Loading...</td></tr>';
+      document.getElementById('pendingEmpty').style.display = 'none';
+
+      callGet('pending-entries')
+        .then(function (data) {
+          pendingEntries = data;
+          selectedKeys = {};
+          pendingPage = 0;
+          renderPendingList();
+        })
+        .catch(function (err) {
+          document.getElementById('pendingBody').innerHTML = '';
+          document.getElementById('pendingEmpty').textContent =
+            'Failed to load: ' + (err && err.message ? err.message : 'unknown error');
+          document.getElementById('pendingEmpty').style.display = 'block';
+        });
+    }
+
+    function renderPendingList() {
+      var pageSize = Number(document.getElementById('pendingPageSize').value);
+      var body = document.getElementById('pendingBody');
+      var empty = document.getElementById('pendingEmpty');
+      body.innerHTML = '';
+
+      if (pendingEntries.length === 0) {
+        empty.textContent = 'No pending entries.';
+        empty.style.display = 'block';
+        document.getElementById('pendingPageInfo').textContent = '';
+        updateContinueBtn();
+        return;
+      }
+      empty.style.display = 'none';
+
+      var totalPages = Math.max(1, Math.ceil(pendingEntries.length / pageSize));
+      if (pendingPage >= totalPages) pendingPage = totalPages - 1;
+      var start = pendingPage * pageSize;
+      var pageItems = pendingEntries.slice(start, start + pageSize);
+
+      pageItems.forEach(function (e) {
+        var key = entryKey(e);
+        var checked = !!selectedKeys[key];
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><input type="checkbox" class="pendingCheckbox" data-key="' + key + '" ' + (checked ? 'checked' : '') + '></td>' +
+          '<td>' + escapeHtml(e.date) + '</td>' +
+          '<td>' + escapeHtml(e.productCode) + '</td>' +
+          '<td>' + escapeHtml(e.description) + '</td>' +
+          '<td>' + escapeHtml(e.material) + '</td>' +
+          '<td>' + escapeHtml(e.quantity) + '</td>' +
+          '<td>' + escapeHtml(e.uom) + '</td>' +
+          '<td>' + escapeHtml(e.claimForDepartment) + '</td>' +
+          '<td>' + escapeHtml(e.claimBy) + '</td>';
+        body.appendChild(tr);
+      });
+
+      Array.prototype.forEach.call(document.querySelectorAll('.pendingCheckbox'), function (cb) {
+        cb.addEventListener('change', function () {
+          var key = this.dataset.key;
+          var entry = pendingEntries.find(function (x) { return entryKey(x) === key; });
+          if (this.checked) selectedKeys[key] = entry;
+          else delete selectedKeys[key];
+          updateContinueBtn();
+          updateSelectAllState();
+        });
+      });
+
+      document.getElementById('pendingPageInfo').textContent = 'Page ' + (pendingPage + 1) + ' of ' + totalPages;
+      updateSelectAllState();
+      updateContinueBtn();
+    }
+
+    function updateSelectAllState() {
+      var pageSize = Number(document.getElementById('pendingPageSize').value);
+      var start = pendingPage * pageSize;
+      var pageItems = pendingEntries.slice(start, start + pageSize);
+      var allChecked = pageItems.length > 0 && pageItems.every(function (e) { return !!selectedKeys[entryKey(e)]; });
+      document.getElementById('pendingSelectAll').checked = allChecked;
+    }
+
+    function updateContinueBtn() {
+      var count = Object.keys(selectedKeys).length;
+      document.getElementById('pendingSelectedCount').textContent = count;
+      document.getElementById('pendingContinueBtn').disabled = count === 0;
+    }
+
+    document.getElementById('pendingSelectAll').addEventListener('change', function () {
+      var pageSize = Number(document.getElementById('pendingPageSize').value);
+      var start = pendingPage * pageSize;
+      var pageItems = pendingEntries.slice(start, start + pageSize);
+      var checkAll = this.checked;
+      pageItems.forEach(function (e) {
+        var key = entryKey(e);
+        if (checkAll) selectedKeys[key] = e; else delete selectedKeys[key];
+      });
+      renderPendingList();
+    });
+
+    document.getElementById('pendingPageSize').addEventListener('change', function () { pendingPage = 0; renderPendingList(); });
+    document.getElementById('pendingPrevPage').addEventListener('click', function () {
+      if (pendingPage > 0) { pendingPage--; renderPendingList(); }
+    });
+    document.getElementById('pendingNextPage').addEventListener('click', function () {
+      var pageSize = Number(document.getElementById('pendingPageSize').value);
+      var totalPages = Math.max(1, Math.ceil(pendingEntries.length / pageSize));
+      if (pendingPage < totalPages - 1) { pendingPage++; renderPendingList(); }
+    });
+    document.getElementById('refreshPendingBtn').addEventListener('click', loadPendingEntries);
+
+    document.getElementById('pendingContinueBtn').addEventListener('click', function () {
+      sapSelected = Object.keys(selectedKeys).map(function (k) { return selectedKeys[k]; });
+      sapBatchIndex = 0;
+      document.getElementById('pendingListCard').style.display = 'none';
+      document.getElementById('sapBatchCard').style.display = 'block';
+      document.getElementById('materialDocumentInput').value = '';
+      document.getElementById('keyInByInput').value = '';
+      document.getElementById('copyStatus').textContent = '';
+      renderSapBatch();
+    });
+
+    document.getElementById('sapBackBtn').addEventListener('click', function () {
+      document.getElementById('sapBatchCard').style.display = 'none';
+      document.getElementById('pendingListCard').style.display = 'block';
+    });
+
+    function currentSapBatchItems() {
+      var rowsPerBatch = Math.max(1, Number(document.getElementById('sapRowsPerBatch').value) || 7);
+      var start = sapBatchIndex * rowsPerBatch;
+      return sapSelected.slice(start, start + rowsPerBatch);
+    }
+
+    function renderSapBatch() {
+      var rowsPerBatch = Math.max(1, Number(document.getElementById('sapRowsPerBatch').value) || 7);
+      var totalBatches = Math.max(1, Math.ceil(sapSelected.length / rowsPerBatch));
+      if (sapBatchIndex >= totalBatches) sapBatchIndex = totalBatches - 1;
+
+      var batchItems = currentSapBatchItems();
+      var body = document.getElementById('sapBody');
+      body.innerHTML = '';
+      batchItems.forEach(function (e) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td>' + escapeHtml(e.material) + '</td>' +
+          '<td class="sap-desc-col">' + escapeHtml(e.description) + '</td>' +
+          '<td>' + escapeHtml(e.quantity) + '</td>' +
+          '<td>' + escapeHtml(e.uom) + '</td>' +
+          '<td>' + escapeHtml(e.plant) + '</td>' +
+          '<td>' + escapeHtml(e.sloc) + '</td>' +
+          '<td>' + escapeHtml(e.costCenter) + '</td>' +
+          '<td>' + escapeHtml(e.glCode) + '</td>';
+        body.appendChild(tr);
+      });
+
+      document.getElementById('sapBatchInfo').textContent =
+        'Batch ' + (sapBatchIndex + 1) + ' of ' + totalBatches + ' - ' + batchItems.length + ' row(s)';
+    }
+
+    document.getElementById('sapRowsPerBatch').addEventListener('change', function () { sapBatchIndex = 0; renderSapBatch(); });
+    document.getElementById('sapPrevBatch').addEventListener('click', function () {
+      if (sapBatchIndex > 0) { sapBatchIndex--; renderSapBatch(); }
+    });
+    document.getElementById('sapNextBatch').addEventListener('click', function () {
+      var rowsPerBatch = Math.max(1, Number(document.getElementById('sapRowsPerBatch').value) || 7);
+      var totalBatches = Math.max(1, Math.ceil(sapSelected.length / rowsPerBatch));
+      if (sapBatchIndex < totalBatches - 1) { sapBatchIndex++; renderSapBatch(); }
+    });
+
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text).then(function () {
+        document.getElementById('copyStatus').textContent = 'Copied to clipboard ✓';
+        setTimeout(function () { document.getElementById('copyStatus').textContent = ''; }, 2000);
+      }).catch(function () {
+        document.getElementById('copyStatus').textContent = 'Could not copy automatically - please select and copy manually.';
+      });
+    }
+
+    document.getElementById('copyBatch1').addEventListener('click', function () {
+      var items = currentSapBatchItems();
+      var text = items.map(function (e) { return e.material; }).join('\n');
+      copyToClipboard(text);
+    });
+    document.getElementById('copyBatch2').addEventListener('click', function () {
+      var items = currentSapBatchItems();
+      var text = items.map(function (e) { return [e.quantity, e.uom, e.plant, e.sloc].join('\t'); }).join('\n');
+      copyToClipboard(text);
+    });
+    document.getElementById('copyBatch3').addEventListener('click', function () {
+      var items = currentSapBatchItems();
+      var text = items.map(function (e) { return [e.costCenter, e.glCode].join('\t'); }).join('\n');
+      copyToClipboard(text);
+    });
+
+    document.getElementById('sapSubmitBtn').addEventListener('click', function () {
+      var materialDocument = document.getElementById('materialDocumentInput').value.trim();
+      var keyInBy = document.getElementById('keyInByInput').value.trim();
+      if (!materialDocument) { alert('Please enter the Material Document number.'); return; }
+      if (!keyInBy) { alert('Please enter who keyed this in.'); return; }
+
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+
+      var payload = sapSelected.map(function (e) {
+        return {
+          id: e.id,
+          materialDocument: materialDocument,
+          expectedMaterial: e.material
+        };
+      });
+
+      callPost('submit-material-documents', { entries: payload, keyInBy: keyInBy })
+        .then(function (result) {
+          btn.disabled = false;
+          btn.textContent = 'Submit';
+          renderPendingGIBanner(result.pendingGI);
+          document.getElementById('sapBatchCard').style.display = 'none';
+          document.getElementById('pendingListCard').style.display = 'block';
+          loadPendingEntries();
+        })
+        .catch(function (err) {
+          btn.disabled = false;
+          btn.textContent = 'Submit';
+          alert('Could not submit: ' + (err && err.message ? err.message : 'unknown error'));
+        });
+    });
+
+    // ==================================================================
+    // ============================ ADMIN TAB ============================
+    // ==================================================================
+
+    var adminEntries = [];
+    var editingIndex = -1;
+
+    function loadAdminEntries() {
+      document.getElementById('adminBody').innerHTML =
+        '<tr><td colspan="11" style="text-align:center; color:#8577a3;">Loading...</td></tr>';
+      document.getElementById('adminEmpty').style.display = 'none';
+
+      callGet('pending-entries')
+        .then(function (data) {
+          adminEntries = data;
+          renderAdminList();
+        })
+        .catch(function (err) {
+          document.getElementById('adminBody').innerHTML = '';
+          document.getElementById('adminEmpty').textContent =
+            'Failed to load: ' + (err && err.message ? err.message : 'unknown error');
+          document.getElementById('adminEmpty').style.display = 'block';
+        });
+    }
+
+    document.getElementById('refreshAdminBtn').addEventListener('click', loadAdminEntries);
+
+    function renderAdminList() {
+      var body = document.getElementById('adminBody');
+      var empty = document.getElementById('adminEmpty');
+      body.innerHTML = '';
+      if (adminEntries.length === 0) {
+        empty.textContent = 'No pending entries.';
+        empty.style.display = 'block';
+        return;
+      }
+      empty.style.display = 'none';
+
+      adminEntries.forEach(function (e, i) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td>' + escapeHtml(e.date) + '</td>' +
+          '<td>' + escapeHtml(e.productCode) + '</td>' +
+          '<td>' + escapeHtml(e.description) + '</td>' +
+          '<td>' + escapeHtml(e.material) + '</td>' +
+          '<td>' + escapeHtml(e.quantity) + '</td>' +
+          '<td>' + escapeHtml(e.uom) + '</td>' +
+          '<td>' + escapeHtml(e.glCode) + '</td>' +
+          '<td>' + escapeHtml(e.claimForDepartment) + '</td>' +
+          '<td>' + escapeHtml(e.claimBy) + '</td>' +
+          '<td>' + escapeHtml(e.submittedBy) + '</td>' +
+          '<td class="row-actions"></td>';
+
+        var actionsTd = tr.querySelector('.row-actions');
+        var editBtn = document.createElement('button');
+        editBtn.textContent = '✏️';
+        editBtn.className = 'btn-secondary';
+        editBtn.title = 'Edit';
+        editBtn.addEventListener('click', function () { openEditModal(i); });
+
+        var delBtn = document.createElement('button');
+        delBtn.textContent = '🗑️';
+        delBtn.className = 'btn-danger';
+        delBtn.title = 'Delete';
+        delBtn.addEventListener('click', function () { deleteAdminEntry(i); });
+
+        actionsTd.appendChild(editBtn);
+        actionsTd.appendChild(delBtn);
+        body.appendChild(tr);
+      });
+    }
+
+    function openEditModal(i) {
+      editingIndex = i;
+      var e = adminEntries[i];
+      document.getElementById('editProductCode').value = e.productCode;
+      document.getElementById('editDescription').value = e.description;
+      document.getElementById('editMaterial').value = e.material;
+      document.getElementById('editUom').value = e.uom;
+      document.getElementById('editQuantity').value = e.quantity;
+      document.getElementById('editGlCode').value = e.glCode;
+      document.getElementById('editDepartment').value = e.claimForDepartment;
+      document.getElementById('editClaimBy').value = e.claimBy;
+      document.getElementById('editSubmittedBy').value = e.submittedBy;
+      document.getElementById('editModal').classList.add('open');
+    }
+
+    document.getElementById('editCancelBtn').addEventListener('click', function () {
+      document.getElementById('editModal').classList.remove('open');
+      editingIndex = -1;
+    });
+
+    document.getElementById('editSaveBtn').addEventListener('click', function () {
+      if (editingIndex < 0) return;
+      var e = adminEntries[editingIndex];
+      var fields = {
+        productCode: document.getElementById('editProductCode').value.trim(),
+        description: document.getElementById('editDescription').value.trim(),
+        material: document.getElementById('editMaterial').value.trim(),
+        quantity: document.getElementById('editQuantity').value.trim(),
+        uom: document.getElementById('editUom').value.trim(),
+        glCode: document.getElementById('editGlCode').value.trim(),
+        claimForDepartment: document.getElementById('editDepartment').value.trim(),
+        claimBy: document.getElementById('editClaimBy').value.trim(),
+        submittedBy: document.getElementById('editSubmittedBy').value.trim()
+      };
+
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      callPost('update-pending-entry', {
+        id: e.id,
+        fields: fields,
+        expected: { material: e.material }
+      })
+        .then(function () {
+          btn.disabled = false;
+          btn.textContent = 'Save';
+          document.getElementById('editModal').classList.remove('open');
+          editingIndex = -1;
+          loadAdminEntries();
+        })
+        .catch(function (err) {
+          btn.disabled = false;
+          btn.textContent = 'Save';
+          alert('Could not save: ' + (err && err.message ? err.message : 'unknown error'));
+        });
+    });
+
+    function deleteAdminEntry(i) {
+      if (!confirm('Delete this entry permanently?')) return;
+      var e = adminEntries[i];
+      callPost('delete-pending-entry', {
+        id: e.id,
+        expected: { material: e.material }
+      })
+        .then(function (result) {
+          renderPendingGIBanner(result.pendingGI);
+          loadAdminEntries();
+        })
+        .catch(function (err) {
+          alert('Could not delete: ' + (err && err.message ? err.message : 'unknown error'));
+        });
+    }
+
+    renderPreview();
+  </script>
+</body>
+</html>
