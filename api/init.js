@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   if (!checkAuth(req, res)) return;
 
   try {
-    const masterRows = await sql`SELECT ean, product_code, description, material FROM master_list`;
+    const masterRows = await sql`SELECT ean, material, description, uom FROM master_list`;
     const pendingRows = await sql`
       SELECT * FROM log_entries WHERE material_number IS NULL ORDER BY created_at ASC
     `;
@@ -18,9 +18,12 @@ export default async function handler(req, res) {
       status: 'success',
       masterList: masterRows.map(r => ({
         ean: r.ean,
-        productCode: r.product_code,
+        // productCode is an alias of ean - Master List has no separate
+        // product-code field, the scanned/typed code IS the EAN/UPC.
+        productCode: r.ean,
         description: r.description,
-        material: r.material
+        material: r.material,
+        uom: r.uom
       })),
       pendingEntries: pendingRows.map(formatEntry),
       pendingCount: pendingRows.length,
