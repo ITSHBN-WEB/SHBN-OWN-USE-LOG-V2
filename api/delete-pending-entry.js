@@ -1,33 +1,41 @@
 import { sql } from '../lib/db.js';
-import { withCors } from '../lib/cors.js';
-import { checkAuth, unauthorized } from '../lib/auth.js';
+import { checkAuth } from '../lib/auth.js';
+import { handlePreflight } from '../lib/cors.js';
 
 export default async function handler(req, res) {
-  withCors(res);
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).end();
-  if (!checkAuth(req)) return unauthorized(res);
+  if (handlePreflight(req, res)) return;
+  if (!checkAuth(req, res)) return;
+  if (req.method !== 'POST') {
+    res.status(405).json({ status: 'error', message: 'Method not allowed' });
+    return;
+  }
 
   try {
-    const { id, expected } = req.body;
-    if (!id) throw new Error('Missing id.');
-
-    const expectedMaterial = expected && expected.material !== undefined ? String(expected.material) : null;
-
-    const rows = expectedMaterial !== null
-      ? await sql`DELETE FROM log_entries WHERE id = ${id} AND material_number IS NULL AND material = ${expectedMaterial} RETURNING id`
-      : await sql`DELETE FROM log_entries WHERE id = ${id} AND material_number IS NULL RETURNING id`;
-
-    if (rows.length === 0) {
-      throw new Error('That entry has changed since you loaded it, or was already processed. Please refresh and try again.');
+    const { id, expectedProductCode } = req.body;
+    if (!id) {
+      res.status(400).json({ status: 'error', message: 'Missing id' });
+      return;
     }
 
-    const pendingRows = await sql`
-      SELECT count(*)::int AS count FROM log_entries WHERE material <> '' AND material_number IS NULL
+    const result = await sql`
+      DELETE FROM log_entries
+      WHERE id = ${id}
+        AND material_number IS NULL
+        AND product_code = ${expectedProductCode}
+      RETURNING id
     `;
 
-    res.status(200).json({ status: 'ok', pendingGI: pendingRows[0].count });
+    if (result.length === 0) {
+      res.status(409).json({
+        status: 'error',
+        message: 'This entry was changed or removed by someone else. Please refresh and try again.'
+      });
+      return;
+    }
+
+    res.status(200).json({ status: 'success', message: 'Entry deleted' });
   } catch (err) {
-    res.status(200).json({ status: 'error', message: err.message });
+    console.error(err);
+    res.status(500).json({ status: 'error', message: err.message });
   }
 }
