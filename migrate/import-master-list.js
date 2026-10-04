@@ -1,86 +1,117 @@
-/**
- * One-time migration: imports your Master List tab into Neon.
- *
- * SETUP:
- * 1. In Google Sheets, right-click the "Master List" tab > Download -
- *    .csv, .xlsx, and .xls are all fine, this script reads any of them.
- * 2. Run, pointing either at the file directly or at a folder that
- *    contains it (the folder can also contain your other exported files -
- *    this picks out whichever one has "master" in its name):
- *      DATABASE_URL="postgres://..." node migrate/import-master-list.js ./master-list.xls
- *      DATABASE_URL="postgres://..." node migrate/import-master-list.js "./Exported logs"
- *
- * Safe to re-run: uses the EAN/UPC as the unique key, so re-importing the
- * same or an updated file just updates existing rows instead of duplicating.
- */
+// Imports the Master List export (CSV/XLS/XLSX, whatever Google Sheets
+// produced) into the Neon master_list table.
+//
+// Usage:
+//   node migrate/import-master-list.js "path/to/file-or-folder"
+//
+// If given a folder, picks the file in it whose name contains "master"
+// (case-insensitive).
+//
+// Real export columns: Material, Material Description, Material Group,
+// Sales Unit, Numerator, EAN/UPC, Department. A single Material can have
+// several EAN/UPC rows (one per pack unit - EA, CAR, etc), so there's no
+// single EAN to safely upsert on. Instead this does a full replace: clears
+// master_list and reinserts everything fresh each run.
 
-import { neon } from '@neondatabase/serverless';
+import XLSX from 'xlsx';
 import fs from 'fs';
 import path from 'path';
-import * as XLSX from 'xlsx';
+import { neon } from '@neondatabase/serverless';
 
+if (!process.env.DATABASE_URL) {
+  console.error('DATABASE_URL environment variable is not set.');
+  process.exit(1);
+}
 const sql = neon(process.env.DATABASE_URL);
 
-function resolveMasterListFile(inputPath) {
+function resolveFile(inputPath) {
   const stat = fs.statSync(inputPath);
   if (stat.isFile()) return inputPath;
 
-  // A folder was given - find the file with "master" in its name.
-  const files = fs.readdirSync(inputPath).filter((f) => /\.(xlsx|xls|csv)$/i.test(f));
-  const match = files.find((f) => f.toLowerCase().includes('master'));
+  const files = fs.readdirSync(inputPath);
+  const match = files.find(f => f.toLowerCase().includes('master'));
   if (!match) {
-    throw new Error(`No file with "master" in its name found in ${inputPath}. Files seen: ${files.join(', ') || '(none)'}`);
+    throw new Error(`No file containing "master" found in folder: ${inputPath}`);
   }
   return path.join(inputPath, match);
 }
 
-async function main() {
-  const inputPath = process.argv[2];
-  if (!inputPath) {
-    console.error('Usage: DATABASE_URL="postgres://..." node migrate/import-master-list.js <file-or-folder>');
-    process.exit(1);
-  }
-  if (!process.env.DATABASE_URL) {
-    console.error('DATABASE_URL environment variable is required.');
-    process.exit(1);
-  }
-
-  const filePath = resolveMasterListFile(inputPath);
-  console.log(`Reading: ${filePath}`);
-
-  const workbook = XLSX.readFile(filePath);
-  const sheetName = workbook.SheetNames[0];
-  // raw: false reads each cell's DISPLAYED text rather than its underlying
-  // number/date value - important for EAN/UPC codes, since a barcode that
-  // looks like a number could otherwise lose a leading zero.
-  const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '', raw: false });
-
-  let count = 0;
-  for (const r of rows) {
-    // Header names here match your Master List sheet's columns: Material,
-    // Material Description, Sales Unit, EAN/UPC. If a header reads
-    // slightly differently in your file, adjust the bracketed names below.
-    const ean = String(r['EAN/UPC'] || r['EAN'] || r['UPC'] || '').trim();
-    if (!ean) continue; // matches the app's own rule: rows with no EAN are skipped
-
-    await sql`
-      INSERT INTO master_list (material, description, uom, ean)
-      VALUES (${String(r['Material'] || '').trim()}, ${String(r['Material Description'] || '').trim()}, ${String(r['Sales Unit'] || '').trim()}, ${ean})
-      ON CONFLICT (ean) DO UPDATE SET
-        material = EXCLUDED.material,
-        description = EXCLUDED.description,
-        uom = EXCLUDED.uom
-    `;
-    count++;
-  }
-
-  console.log(`Imported/updated ${count} master list row(s).`);
-  if (count === 0) {
-    console.warn('0 rows imported - check that the header names above match your file\'s actual column headers.');
-  }
+function normalizeHeader(h) {
+  return String(h || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-main().catch((err) => {
+async function main() {
+  const inputArg = process.argv[2];
+  if (!inputArg) {
+    console.error('Usage: node migrate/import-master-list.js "path/to/file-or-folder"');
+    process.exit(1);
+  }
+
+  const filePath = resolveFile(inputArg);
+  console.log(`Reading: ${filePath}`);
+
+  const workbook = XLSX.readFile(filePath, { raw: false });
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(sheet, { raw: false, defval: '' });
+
+  if (rows.length === 0) {
+    console.error('No rows found in the file.');
+    process.exit(1);
+  }
+
+  const headerMap = {
+    material: ['material'],
+    description: ['materialdescription', 'description'],
+    uom: ['salesunit', 'uom', 'unit'],
+    ean: ['eanupc', 'ean', 'upc', 'barcode']
+  };
+
+  const sampleKeys = Object.keys(rows[0]).map(normalizeHeader);
+  function findKey(targetAliases) {
+    const idx = sampleKeys.findIndex(k => targetAliases.includes(k));
+    if (idx === -1) return null;
+    return Object.keys(rows[0])[idx];
+  }
+
+  const materialKey = findKey(headerMap.material);
+  const descriptionKey = findKey(headerMap.description);
+  const uomKey = findKey(headerMap.uom);
+  const eanKey = findKey(headerMap.ean);
+
+  if (!eanKey) {
+    console.error('Could not find an EAN/UPC column in the file. Columns found:', Object.keys(rows[0]));
+    process.exit(1);
+  }
+
+  console.log('Clearing existing master_list rows...');
+  await sql`DELETE FROM master_list`;
+
+  let imported = 0;
+  let skipped = 0;
+
+  for (const row of rows) {
+    const ean = String(row[eanKey] || '').trim();
+    if (!ean) {
+      skipped++;
+      continue;
+    }
+
+    const material = materialKey ? String(row[materialKey] || '').trim() : '';
+    const description = descriptionKey ? String(row[descriptionKey] || '').trim() : '';
+    const uom = uomKey ? String(row[uomKey] || '').trim() : '';
+
+    await sql`
+      INSERT INTO master_list (ean, material, description, uom)
+      VALUES (${ean}, ${material || null}, ${description}, ${uom})
+    `;
+    imported++;
+  }
+
+  console.log(`Done. Imported ${imported} rows, skipped ${skipped} rows with no EAN/UPC.`);
+}
+
+main().catch(err => {
   console.error('Migration failed:', err);
   process.exit(1);
 });
