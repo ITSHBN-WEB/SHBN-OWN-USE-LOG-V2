@@ -1,45 +1,43 @@
--- SHBN Own Use Log - Neon schema
---
--- Run this once against your Neon database, e.g.:
---   psql "$DATABASE_URL" -f schema/schema.sql
+-- SHBN Own Use Log - Neon/Postgres schema
+-- Run this once in the Neon SQL editor before importing data.
 
+-- No single column here is unique: a Material can have several EAN/UPC
+-- rows (one per pack unit - EA, CAR, etc), so there's no natural primary
+-- key besides the row id. The migration script does a full
+-- delete+reinsert each run rather than an upsert.
 CREATE TABLE IF NOT EXISTS master_list (
-  id          SERIAL PRIMARY KEY,
-  material    TEXT NOT NULL,
-  description TEXT NOT NULL,
-  uom         TEXT NOT NULL DEFAULT '',
-  ean         TEXT NOT NULL UNIQUE
+  id               SERIAL PRIMARY KEY,
+  material         TEXT,
+  description      TEXT,
+  uom              TEXT,
+  ean              TEXT
+);
+
+CREATE TABLE IF NOT EXISTS log_entries (
+  id                      SERIAL PRIMARY KEY,
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+  product_code            TEXT,
+  description             TEXT,
+  material                TEXT,     -- SAP Material code, matched from Master List
+  quantity                NUMERIC,
+  uom                     TEXT,
+  plant                   TEXT,
+  sloc                    TEXT,
+  cost_center             TEXT,
+  gl_code                 TEXT,
+  claim_department        TEXT,
+  claim_by                TEXT,
+  submitted_by            TEXT,
+  matched                 BOOLEAN,   -- true if product_code auto-matched the Master List
+  material_number         TEXT,      -- SAP Material Document number from GI/Copy-to-SAP; NULL = pending
+  material_doc_keyed_by   TEXT,
+  material_doc_date       TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_master_list_ean ON master_list (ean);
 
-CREATE TABLE IF NOT EXISTS log_entries (
-  id                    SERIAL PRIMARY KEY,
-  created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-  product_code          TEXT NOT NULL,
-  description           TEXT NOT NULL DEFAULT '',
-  material              TEXT NOT NULL DEFAULT '',
-  quantity              NUMERIC,
-  uom                   TEXT NOT NULL DEFAULT '',
-  plant                 TEXT NOT NULL DEFAULT '1008',
-  sloc                  TEXT NOT NULL DEFAULT '1000',
-  cost_center           TEXT NOT NULL DEFAULT '10100800',
-  gl_code               TEXT NOT NULL DEFAULT '',
-  claim_department      TEXT NOT NULL DEFAULT '',
-  claim_by              TEXT NOT NULL DEFAULT '',
-  submitted_by          TEXT NOT NULL DEFAULT '',
-  matched               BOOLEAN NOT NULL DEFAULT true, -- false = product code had no Master List match at entry time (old "red highlight")
-  material_number       TEXT,                          -- NULL = still pending a Material Document
-  material_doc_keyed_by TEXT,
-  material_doc_date     TIMESTAMPTZ
-);
+-- Partial index: the Pending Entry / Admin tabs only ever query rows
+-- where material_number is still NULL, so index just those.
+CREATE INDEX IF NOT EXISTS idx_log_entries_pending ON log_entries (id) WHERE material_number IS NULL;
 
--- Speeds up the "pending" query: material filled, material_number blank.
--- This single indexed WHERE clause replaces the old full-sheet-scan +
--- 5-minute cache entirely.
-CREATE INDEX IF NOT EXISTS idx_log_entries_pending
-  ON log_entries (created_at)
-  WHERE material <> '' AND material_number IS NULL;
-
-CREATE INDEX IF NOT EXISTS idx_log_entries_created_at
-  ON log_entries (created_at);
+CREATE INDEX IF NOT EXISTS idx_log_entries_created_at ON log_entries (created_at);
