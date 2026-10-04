@@ -1,61 +1,80 @@
-# SHBN Own Use Log - Neon + Vercel migration
+[README.md](https://github.com/user-attachments/files/33016746/README.md)
+# SHBN - Own Use Log (Neon + Vercel backend)
 
-Fully migrated: both Master List and log entries (New Entry submissions, the
-Pending Entry queue, Material Documents) live in Neon (Postgres). The old
-Google Sheet and Apps Script deployment are no longer needed once this is
-live and verified - see the last step for retiring them.
+This replaces the old Google Apps Script + Google Sheets backend with:
+- **Neon** (serverless Postgres) for storage (Master List + log entries)
+- **Vercel** (serverless functions) for the API
+- **GitHub Pages** still hosts `Index.html` (the frontend), now pointed at the Vercel API instead of the Apps Script URL
 
-## 1. Create the Neon database
+## 1. Set up the Neon database
 
-1. Sign up / log in at neon.tech, create a project.
-2. Copy the connection string from the dashboard (starts with `postgres://`).
-3. Run the schema once - either paste the contents of `schema/schema.sql`
-   into Neon's own SQL Editor (in the Neon console) and click Run, or from
-   your own machine:
-   ```
-   psql "postgres://...your-connection-string..." -f schema/schema.sql
-   ```
+1. In the Neon dashboard, open the SQL editor for your project.
+2. Paste the entire contents of `schema/schema.sql` and run it. This creates the `master_list` and `log_entries` tables.
 
 ## 2. Import your existing data
 
-1. In Google Sheets, download each tab you need (Master List + every
-   monthly tab) - .csv, .xlsx, and .xls all work, the scripts read any of
-   them. They can all go in the same folder; the scripts sort out which
-   file is which automatically (anything with "master" in its name is
-   treated as the Master List, everything else as a monthly log).
-2. On your computer (Node.js required), inside this project folder:
-   ```
-   npm install
-   DATABASE_URL="postgres://...your-connection-string..." node migrate/import-master-list.js "./Exported logs"
-   DATABASE_URL="postgres://...your-connection-string..." node migrate/import-log-entries.js "./Exported logs"
-   ```
-3. Verify in Neon's SQL Editor:
-   ```sql
-   SELECT count(*) FROM master_list;
-   SELECT count(*) FROM log_entries;
-   ```
+From your computer, in this project folder:
+
+```
+npm install
+```
+
+Then set your Neon connection string for the current terminal session and run the two import scripts, **one command at a time, each as its own separate paste**:
+
+**Windows PowerShell:**
+```
+$env:DATABASE_URL="your-neon-connection-string-here"
+```
+(press Enter, confirm it returns to a normal prompt before continuing)
+
+```
+node migrate/import-master-list.js "Exported logs"
+```
+
+```
+node migrate/import-log-entries.js "Exported logs"
+```
+
+**Mac/Linux:**
+```
+export DATABASE_URL="your-neon-connection-string-here"
+node migrate/import-master-list.js "Exported logs"
+node migrate/import-log-entries.js "Exported logs"
+```
+
+Where `"Exported logs"` is the folder containing your exported Google Sheets files (CSV, XLS, or XLSX — any format works). The master-list script picks the file with "master" in its name; the log-entries script imports every other file in the folder.
+
+After running both, go back to the Neon dashboard Tables view and confirm `master_list` and `log_entries` now show real row counts.
 
 ## 3. Deploy to Vercel
 
-1. Push this folder to a GitHub repo (or use the Vercel CLI to deploy
-   directly without one).
-2. In Vercel: New Project > import the repo.
-3. Before the first deploy, add these under Environment Variables:
-   - `DATABASE_URL` - the Neon connection string from step 1
-   - `API_SECRET` - the password the app should require
-4. Deploy. Your API base URL will be `https://your-project.vercel.app/api`.
+1. Push this whole folder to your GitHub repo (or use "Add files via upload" on GitHub, then import that repo into Vercel).
+2. In Vercel, go to your project's **Settings > Environment Variables** and add:
+   - `DATABASE_URL` = your Neon connection string
+   - `API_SECRET` = your chosen password (this doubles as the login password in the app, e.g. `8888`)
+3. Redeploy (Vercel usually redeploys automatically after a push; if not, use the "Redeploy" button).
+4. Your API will be live at `https://<your-project-name>.vercel.app/api/...` — the root domain itself (`https://<your-project-name>.vercel.app/`) will show "This page doesn't exist", which is expected since there's no homepage, only `/api/*` routes.
 
-## 4. Point Index.html at it
+## 4. Point Index.html at the new API
 
-In Index.html, set:
-```js
-var VERCEL_API_URL = 'https://your-project.vercel.app/api';
+In `Index.html`, set the API base URL constant to:
 ```
-Then push Index.html to GitHub Pages (or wherever it's hosted) as usual.
+https://<your-project-name>.vercel.app/api
+```
+Then push the updated `Index.html` to GitHub Pages as usual.
 
-## 5. Test, then retire the old stack
+## 5. Test end-to-end
 
-Once you've confirmed New Entry, Pending Entry, and Admin all work against
-Neon: the Google Sheet and Apps Script deployment are no longer touched by
-anything. You can leave them alone as a static backup, or go to the Apps
-Script project > Deploy > Manage deployments and archive the deployment.
+- Open the GitHub Pages site, log in with your password (this is now checked against `API_SECRET` on the server, not just compared in the browser).
+- Try New Entry, Pending Entry, Copy to SAP, and Admin edit/delete.
+- Confirm new rows appear in the Neon `log_entries` table.
+
+## 6. Retire the old stack
+
+Once everything above is confirmed working, you can delete the old Apps Script project and stop maintaining the Google Sheet — all data now lives in Neon.
+
+## Notes
+
+- There is a single password/login now (`API_SECRET`); the old separate staff password has been removed.
+- Master List is **not** shared with other SHBN apps — it was migrated here in full, specific to this app.
+- Concurrency: the Admin/Copy-to-SAP update and delete endpoints use an atomic `UPDATE/DELETE ... WHERE id=... AND material IS NULL AND product_code=...` check, so two people acting on the same pending row at once can't silently overwrite each other.
