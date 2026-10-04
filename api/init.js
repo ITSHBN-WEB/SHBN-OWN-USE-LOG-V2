@@ -1,26 +1,34 @@
 import { sql } from '../lib/db.js';
-import { withCors } from '../lib/cors.js';
-import { checkAuth, unauthorized } from '../lib/auth.js';
+import { checkAuth } from '../lib/auth.js';
+import { handlePreflight } from '../lib/cors.js';
+import { formatEntry } from '../lib/format.js';
 import { DEFAULTS, GL_CODES } from '../lib/constants.js';
 
 export default async function handler(req, res) {
-  withCors(res);
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (!checkAuth(req)) return unauthorized(res);
+  if (handlePreflight(req, res)) return;
+  if (!checkAuth(req, res)) return;
 
   try {
-    const [masterListRows, pendingRows] = await Promise.all([
-      sql`SELECT material, description, uom, ean FROM master_list ORDER BY id`,
-      sql`SELECT count(*)::int AS count FROM log_entries WHERE material <> '' AND material_number IS NULL`
-    ]);
+    const masterRows = await sql`SELECT ean, product_code, description, material FROM master_list`;
+    const pendingRows = await sql`
+      SELECT * FROM log_entries WHERE material_number IS NULL ORDER BY created_at ASC
+    `;
 
     res.status(200).json({
-      masterList: masterListRows,
-      glCodes: GL_CODES,
+      status: 'success',
+      masterList: masterRows.map(r => ({
+        ean: r.ean,
+        productCode: r.product_code,
+        description: r.description,
+        material: r.material
+      })),
+      pendingEntries: pendingRows.map(formatEntry),
+      pendingCount: pendingRows.length,
       defaults: DEFAULTS,
-      pendingGI: pendingRows[0].count
+      glCodes: GL_CODES
     });
   } catch (err) {
-    res.status(200).json({ status: 'error', message: err.message });
+    console.error(err);
+    res.status(500).json({ status: 'error', message: err.message });
   }
 }
