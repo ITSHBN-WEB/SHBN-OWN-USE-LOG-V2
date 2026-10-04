@@ -1,10 +1,17 @@
 {
-  "name": "shbn-own-use-log-api",
+  "name": "own-use-vercel",
   "version": "1.0.0",
-  "private": true,
+  "description": "SHBN - Own Use Log backend (Neon + Vercel)",
   "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
   "dependencies": {
-    "@neondatabase/serverless": "^0.9.5",
+    "@neondatabase/serverless": "^0.9.0",
     "xlsx": "^0.18.5"
-  }
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }
