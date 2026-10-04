@@ -11,9 +11,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { id, expectedProductCode } = req.body;
-    if (!id) {
-      res.status(400).json({ status: 'error', message: 'Missing id' });
+    const { id, expected } = req.body;
+    if (!id || !expected) {
+      res.status(400).json({ status: 'error', message: 'Missing id or expected' });
       return;
     }
 
@@ -21,7 +21,7 @@ export default async function handler(req, res) {
       DELETE FROM log_entries
       WHERE id = ${id}
         AND material_number IS NULL
-        AND product_code = ${expectedProductCode}
+        AND material = ${expected.material}
       RETURNING id
     `;
 
@@ -33,7 +33,11 @@ export default async function handler(req, res) {
       return;
     }
 
-    res.status(200).json({ status: 'success', message: 'Entry deleted' });
+    const pendingCountRows = await sql`
+      SELECT COUNT(*)::int AS count FROM log_entries WHERE material_number IS NULL
+    `;
+
+    res.status(200).json({ status: 'success', pendingGI: pendingCountRows[0].count });
   } catch (err) {
     console.error(err);
     res.status(500).json({ status: 'error', message: err.message });

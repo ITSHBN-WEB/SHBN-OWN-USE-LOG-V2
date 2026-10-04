@@ -1,7 +1,6 @@
 import { sql } from '../lib/db.js';
 import { checkAuth } from '../lib/auth.js';
 import { handlePreflight } from '../lib/cors.js';
-import { formatEntry } from '../lib/format.js';
 import { DEFAULTS, GL_CODES } from '../lib/constants.js';
 
 export default async function handler(req, res) {
@@ -10,8 +9,8 @@ export default async function handler(req, res) {
 
   try {
     const masterRows = await sql`SELECT ean, material, description, uom FROM master_list`;
-    const pendingRows = await sql`
-      SELECT * FROM log_entries WHERE material_number IS NULL ORDER BY created_at ASC
+    const pendingCountRows = await sql`
+      SELECT COUNT(*)::int AS count FROM log_entries WHERE material_number IS NULL
     `;
 
     res.status(200).json({
@@ -25,10 +24,9 @@ export default async function handler(req, res) {
         material: r.material,
         uom: r.uom
       })),
-      pendingEntries: pendingRows.map(formatEntry),
-      pendingCount: pendingRows.length,
+      glCodes: GL_CODES,
       defaults: DEFAULTS,
-      glCodes: GL_CODES
+      pendingGI: pendingCountRows[0].count
     });
   } catch (err) {
     console.error(err);

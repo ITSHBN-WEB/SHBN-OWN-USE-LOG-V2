@@ -1,7 +1,8 @@
 import { sql } from '../lib/db.js';
 import { checkAuth } from '../lib/auth.js';
 import { handlePreflight } from '../lib/cors.js';
-import { formatMonthLabel } from '../lib/format.js';
+import { formatDate, formatMonthLabel } from '../lib/format.js';
+import { DEFAULTS } from '../lib/constants.js';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
@@ -18,22 +19,35 @@ export default async function handler(req, res) {
       return;
     }
 
+    const now = new Date();
+
     for (const e of entries) {
       await sql`
         INSERT INTO log_entries (
-          product_code, description, material, quantity, uom, plant, sloc,
-          cost_center, gl_code, claim_department, claim_by, submitted_by
+          created_at, product_code, description, material, quantity, uom,
+          plant, sloc, cost_center, gl_code, claim_department, claim_by,
+          submitted_by, matched
         ) VALUES (
-          ${e.productCode}, ${e.description}, NULL, ${e.quantity}, ${e.uom},
-          ${e.plant}, ${e.sloc}, ${e.costCenter}, ${e.glCode},
-          ${e.claimForDepartment}, ${e.claimBy}, ${e.submittedBy}
+          ${now.toISOString()},
+          ${e.productCode}, ${e.description}, ${e.material || null},
+          ${e.quantity}, ${e.uom},
+          ${DEFAULTS.plant}, ${DEFAULTS.sloc}, ${DEFAULTS.costCenter},
+          ${e.glCode}, ${e.claimForDepartment}, ${e.claimBy}, ${e.submittedBy},
+          ${!!e.matched}
         )
       `;
     }
 
+    const pendingCountRows = await sql`
+      SELECT COUNT(*)::int AS count FROM log_entries WHERE material_number IS NULL
+    `;
+
     res.status(200).json({
       status: 'success',
-      message: `Submitted ${entries.length} entries to '${formatMonthLabel(new Date())}'`
+      count: entries.length,
+      sheet: formatMonthLabel(now),
+      timestamp: formatDate(now),
+      pendingGI: pendingCountRows[0].count
     });
   } catch (err) {
     console.error(err);

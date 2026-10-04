@@ -2,9 +2,10 @@ import { sql } from '../lib/db.js';
 import { checkAuth } from '../lib/auth.js';
 import { handlePreflight } from '../lib/cors.js';
 
-// Admin tab edit. Atomic optimistic-concurrency check folded into the
-// WHERE clause: only updates if the row is still pending and still
-// matches what the client last saw.
+// Admin tab edit. Index.html posts { id, fields: {...}, expected: {material} }.
+// The WHERE clause folds the optimistic-concurrency check in directly:
+// only updates if the row is still pending and its SAP material code
+// still matches what the client last saw.
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   if (!checkAuth(req, res)) return;
@@ -14,29 +15,27 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { id, expectedProductCode, updates } = req.body;
-    if (!id || !updates) {
-      res.status(400).json({ status: 'error', message: 'Missing id or updates' });
+    const { id, fields, expected } = req.body;
+    if (!id || !fields || !expected) {
+      res.status(400).json({ status: 'error', message: 'Missing id, fields, or expected' });
       return;
     }
 
     const result = await sql`
       UPDATE log_entries
       SET
-        product_code = ${updates.productCode},
-        description = ${updates.description},
-        quantity = ${updates.quantity},
-        uom = ${updates.uom},
-        plant = ${updates.plant},
-        sloc = ${updates.sloc},
-        cost_center = ${updates.costCenter},
-        gl_code = ${updates.glCode},
-        claim_department = ${updates.claimForDepartment},
-        claim_by = ${updates.claimBy},
-        submitted_by = ${updates.submittedBy}
+        product_code = ${fields.productCode},
+        description = ${fields.description},
+        material = ${fields.material || null},
+        quantity = ${fields.quantity === '' || fields.quantity == null ? null : Number(fields.quantity)},
+        uom = ${fields.uom},
+        gl_code = ${fields.glCode},
+        claim_department = ${fields.claimForDepartment},
+        claim_by = ${fields.claimBy},
+        submitted_by = ${fields.submittedBy}
       WHERE id = ${id}
         AND material_number IS NULL
-        AND product_code = ${expectedProductCode}
+        AND material = ${expected.material}
       RETURNING id
     `;
 
@@ -48,7 +47,7 @@ export default async function handler(req, res) {
       return;
     }
 
-    res.status(200).json({ status: 'success', message: 'Entry updated' });
+    res.status(200).json({ status: 'success' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ status: 'error', message: err.message });
