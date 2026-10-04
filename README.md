@@ -1,4 +1,4 @@
-[README.md](https://github.com/user-attachments/files/33016746/README.md)
+[README.md](https://github.com/user-attachments/files/33016988/README.md)
 # SHBN - Own Use Log (Neon + Vercel backend)
 
 This replaces the old Google Apps Script + Google Sheets backend with:
