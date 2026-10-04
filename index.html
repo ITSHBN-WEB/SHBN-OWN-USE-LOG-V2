@@ -434,6 +434,41 @@
       font-size: 16px;
       flex-shrink: 0;
     }
+
+    /* ---------- Summary Report ---------- */
+    .report-stat {
+      background: var(--purple-bg);
+      border-radius: 8px;
+      padding: 12px 10px;
+      text-align: center;
+    }
+    .report-stat-num {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--purple-darker);
+    }
+    .report-stat-label {
+      font-size: 11.5px;
+      color: #8577a3;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .status-badge.completed {
+      background: #e8f6ec;
+      color: var(--success);
+    }
+    .status-badge.pending {
+      background: #fff4e0;
+      color: #8a5a00;
+    }
   </style>
 </head>
 <body>
@@ -450,6 +485,7 @@
   <div class="tab-nav" id="tabNav" style="display:none;">
     <button class="tab-btn active" id="navEntryBtn" type="button">New Entry</button>
     <button class="tab-btn" id="navPendingBtn" type="button" style="display:none;">Pending Entry</button>
+    <button class="tab-btn" id="navReportBtn" type="button" style="display:none;">Summary Report</button>
     <button class="tab-btn" id="navAdminBtn" type="button" style="display:none;">Admin</button>
   </div>
 
@@ -664,6 +700,52 @@
         <div class="btn-row">
           <button class="btn-danger" id="sapBackBtn" type="button">Back</button>
           <button class="btn-success" id="sapSubmitBtn" type="button">Submit</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= SUMMARY REPORT TAB ================= -->
+    <div id="reportTab" style="display:none;">
+      <div class="card">
+        <h2>Summary Report</h2>
+        <div class="row2" style="align-items:end;">
+          <div class="field" style="margin-bottom:0;">
+            <label>Month</label>
+            <input type="month" id="reportMonth">
+          </div>
+          <div style="text-align:right;">
+            <button class="btn-primary" id="runReportBtn" type="button">Run</button>
+          </div>
+        </div>
+
+        <div id="reportSummary" style="display:none; margin-top:14px;">
+          <div class="row2" style="grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+            <div class="report-stat">
+              <div class="report-stat-num" id="reportTotalCount">0</div>
+              <div class="report-stat-label">Total</div>
+            </div>
+            <div class="report-stat">
+              <div class="report-stat-num" id="reportCompletedCount">0</div>
+              <div class="report-stat-label">Completed</div>
+            </div>
+            <div class="report-stat">
+              <div class="report-stat-num" id="reportPendingCount">0</div>
+              <div class="report-stat-label">Pending</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-scroll" style="margin-top:14px;">
+          <table id="reportTable">
+            <thead>
+              <tr>
+                <th>Date</th><th>Code</th><th>Description</th><th>Material</th><th>Qty</th><th>UOM</th>
+                <th>GL Code</th><th>Dept</th><th>Claim By</th><th>Submitted By</th><th>Material Document</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="reportBody"></tbody>
+          </table>
+          <div class="preview-empty" id="reportEmpty">Select a month and tap Run to generate a report.</div>
         </div>
       </div>
     </div>
@@ -934,6 +1016,7 @@
       document.getElementById('mainContent').style.display = 'block';
       document.getElementById('tabNav').style.display = 'flex';
       document.getElementById('navPendingBtn').style.display = 'inline-block';
+      document.getElementById('navReportBtn').style.display = 'inline-block';
       document.getElementById('navAdminBtn').style.display = 'inline-block';
       switchTab('entry');
     }
@@ -979,10 +1062,12 @@
     function switchTab(tab) {
       document.getElementById('entryTab').style.display = tab === 'entry' ? 'block' : 'none';
       document.getElementById('pendingTab').style.display = tab === 'pending' ? 'block' : 'none';
+      document.getElementById('reportTab').style.display = tab === 'report' ? 'block' : 'none';
       document.getElementById('adminTab').style.display = tab === 'admin' ? 'block' : 'none';
 
       document.getElementById('navEntryBtn').classList.toggle('active', tab === 'entry');
       document.getElementById('navPendingBtn').classList.toggle('active', tab === 'pending');
+      document.getElementById('navReportBtn').classList.toggle('active', tab === 'report');
       document.getElementById('navAdminBtn').classList.toggle('active', tab === 'admin');
 
       if (tab === 'pending') loadPendingEntries();
@@ -991,6 +1076,7 @@
 
     document.getElementById('navEntryBtn').addEventListener('click', function () { switchTab('entry'); });
     document.getElementById('navPendingBtn').addEventListener('click', function () { switchTab('pending'); });
+    document.getElementById('navReportBtn').addEventListener('click', function () { switchTab('report'); });
     document.getElementById('navAdminBtn').addEventListener('click', function () { switchTab('admin'); });
 
     // ---------- Auto-caps on text inputs ----------
@@ -1619,6 +1705,84 @@
           alert('Could not submit: ' + (err && err.message ? err.message : 'unknown error'));
         });
     });
+
+    // ==================================================================
+    // ========================= SUMMARY REPORT TAB ========================
+    // ==================================================================
+
+    // Default the month picker to the current month, in Asia/Kuala_Lumpur.
+    (function initReportMonth() {
+      var now = new Date();
+      var kl = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kuala_Lumpur' }));
+      var yyyy = kl.getFullYear();
+      var mm = String(kl.getMonth() + 1).padStart(2, '0');
+      document.getElementById('reportMonth').value = yyyy + '-' + mm;
+    })();
+
+    document.getElementById('runReportBtn').addEventListener('click', function () {
+      var month = document.getElementById('reportMonth').value;
+      if (!month) { alert('Please select a month.'); return; }
+
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = 'Running...';
+      document.getElementById('reportSummary').style.display = 'none';
+      document.getElementById('reportBody').innerHTML = '';
+      document.getElementById('reportEmpty').textContent = 'Loading...';
+      document.getElementById('reportEmpty').style.display = 'block';
+
+      callGet('summary-report?month=' + encodeURIComponent(month))
+        .then(function (result) {
+          btn.disabled = false;
+          btn.textContent = 'Run';
+          renderReport(result);
+        })
+        .catch(function (err) {
+          btn.disabled = false;
+          btn.textContent = 'Run';
+          document.getElementById('reportEmpty').textContent =
+            'Failed to load report: ' + (err && err.message ? err.message : 'unknown error');
+          document.getElementById('reportEmpty').style.display = 'block';
+        });
+    });
+
+    function renderReport(result) {
+      var body = document.getElementById('reportBody');
+      var empty = document.getElementById('reportEmpty');
+      var summary = document.getElementById('reportSummary');
+      body.innerHTML = '';
+
+      document.getElementById('reportTotalCount').textContent = result.totalCount;
+      document.getElementById('reportCompletedCount').textContent = result.completedCount;
+      document.getElementById('reportPendingCount').textContent = result.pendingCount;
+      summary.style.display = 'block';
+
+      if (!result.entries || result.entries.length === 0) {
+        empty.textContent = 'No entries found for this month.';
+        empty.style.display = 'block';
+        return;
+      }
+      empty.style.display = 'none';
+
+      result.entries.forEach(function (e) {
+        var isCompleted = e.status === 'Completed';
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td>' + escapeHtml(e.date) + '</td>' +
+          '<td>' + escapeHtml(e.productCode) + '</td>' +
+          '<td>' + escapeHtml(e.description) + '</td>' +
+          '<td>' + escapeHtml(e.material) + '</td>' +
+          '<td>' + escapeHtml(e.quantity) + '</td>' +
+          '<td>' + escapeHtml(e.uom) + '</td>' +
+          '<td>' + escapeHtml(e.glCode) + '</td>' +
+          '<td>' + escapeHtml(e.claimForDepartment) + '</td>' +
+          '<td>' + escapeHtml(e.claimBy) + '</td>' +
+          '<td>' + escapeHtml(e.submittedBy) + '</td>' +
+          '<td>' + escapeHtml(e.materialNumber) + '</td>' +
+          '<td><span class="status-badge ' + (isCompleted ? 'completed' : 'pending') + '">' + e.status + '</span></td>';
+        body.appendChild(tr);
+      });
+    }
 
     // ==================================================================
     // ============================ ADMIN TAB ============================
