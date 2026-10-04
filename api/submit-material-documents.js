@@ -1,63 +1,59 @@
 import { sql } from '../lib/db.js';
-import { withCors } from '../lib/cors.js';
-import { checkAuth, unauthorized } from '../lib/auth.js';
-import { formatDate } from '../lib/format.js';
+import { checkAuth } from '../lib/auth.js';
+import { handlePreflight } from '../lib/cors.js';
 
+// Batch "Copy to SAP" confirmation: assigns SAP Material Document numbers
+// to a set of previously-pending rows. Uses an atomic UPDATE ... WHERE
+// clause (id + still-NULL material + matching fingerprint) so a row that
+// changed or was deleted by someone else in the meantime is simply not
+// updated, instead of silently overwriting stale data (optimistic
+// concurrency, replaces the old verifyPendingRow() pre-check).
 export default async function handler(req, res) {
-  withCors(res);
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).end();
-  if (!checkAuth(req)) return unauthorized(res);
+  if (handlePreflight(req, res)) return;
+  if (!checkAuth(req, res)) return;
+  if (req.method !== 'POST') {
+    res.status(405).json({ status: 'error', message: 'Method not allowed' });
+    return;
+  }
 
   try {
-    const { entries, keyInBy } = req.body;
-    if (!entries || !entries.length) throw new Error('No entries selected.');
-    if (!keyInBy) throw new Error('Please enter who keyed this in.');
+    const { updates } = req.body;
+    if (!Array.isArray(updates) || updates.length === 0) {
+      res.status(400).json({ status: 'error', message: 'No updates provided' });
+      return;
+    }
 
-    const now = new Date();
-
-    // Each UPDATE is conditioned on material_number still being NULL and the
-    // material still matching what the client last saw - atomic, so there's
-    // no read-then-write race window like the old sheet+row-number approach
-    // needed a separate verify step for. Rows are applied independently:
-    // if one has genuinely changed (someone else keyed it in, or edited it),
-    // it's reported by id rather than the whole batch silently succeeding
-    // or being all-or-nothing rolled back.
-    const failedIds = [];
-    let succeeded = 0;
-    for (const e of entries) {
-      const rows = await sql`
+    const failed = [];
+    for (const u of updates) {
+      const result = await sql`
         UPDATE log_entries
-        SET material_number = ${e.materialDocument},
-            material_doc_keyed_by = ${keyInBy},
-            material_doc_date = ${now.toISOString()}
-        WHERE id = ${e.id}
+        SET
+          material_number = ${u.materialNumber},
+          material_doc_keyed_by = ${u.keyedBy || null},
+          material_doc_date = now()
+        WHERE id = ${u.id}
           AND material_number IS NULL
-          AND material = ${e.expectedMaterial}
+          AND product_code = ${u.expectedProductCode}
+          AND material = ${u.expectedMaterial}
         RETURNING id
       `;
-      if (rows.length) succeeded++;
-      else failedIds.push(e.id);
+      if (result.length === 0) {
+        failed.push(u.id);
+      }
     }
 
-    if (failedIds.length) {
-      throw new Error(
-        `${succeeded} of ${entries.length} were saved. Entry id(s) ${failedIds.join(', ')} ` +
-        `had already changed (edited or processed by someone else) and were skipped - please refresh and retry those.`
-      );
+    if (failed.length > 0) {
+      res.status(200).json({
+        status: 'partial',
+        message: `${updates.length - failed.length} updated, ${failed.length} skipped (changed or removed by someone else)`,
+        failedIds: failed
+      });
+      return;
     }
 
-    const pendingRows = await sql`
-      SELECT count(*)::int AS count FROM log_entries WHERE material <> '' AND material_number IS NULL
-    `;
-
-    res.status(200).json({
-      status: 'ok',
-      count: succeeded,
-      timestamp: formatDate(now),
-      pendingGI: pendingRows[0].count
-    });
+    res.status(200).json({ status: 'success', message: `Updated ${updates.length} entries` });
   } catch (err) {
-    res.status(200).json({ status: 'error', message: err.message });
+    console.error(err);
+    res.status(500).json({ status: 'error', message: err.message });
   }
 }
