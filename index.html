@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     :root {
       --purple-bg: #ede7f9;
@@ -487,6 +488,7 @@
     <button class="tab-btn" id="navPendingBtn" type="button" style="display:none;">Pending Entry</button>
     <button class="tab-btn" id="navReportBtn" type="button" style="display:none;">Summary Report</button>
     <button class="tab-btn" id="navAdminBtn" type="button" style="display:none;">Admin</button>
+    <button class="tab-btn" id="navMasterlistBtn" type="button" style="display:none;">Update Masterlist</button>
   </div>
 
   <div class="container" id="passwordScreen" style="display:none; max-width: 380px;">
@@ -769,6 +771,60 @@
       </div>
     </div>
 
+    <!-- ================= UPDATE MASTERLIST TAB ================= -->
+    <div id="masterlistTab" style="display:none;">
+      <div class="card">
+        <h2>Add New Item</h2>
+        <div class="row2">
+          <div class="field">
+            <label>Material</label>
+            <input type="text" id="mlAddMaterial" placeholder="SAP Material code">
+          </div>
+          <div class="field">
+            <label>EAN / UPC</label>
+            <input type="text" id="mlAddEan" placeholder="Barcode">
+          </div>
+        </div>
+        <div class="field">
+          <label>Description</label>
+          <input type="text" id="mlAddDescription" placeholder="Material description">
+        </div>
+        <div class="field">
+          <label>UOM</label>
+          <input type="text" id="mlAddUom" placeholder="e.g. EA, CAR">
+        </div>
+        <div id="mlAddStatus" style="font-size:12.5px; min-height:16px; margin-bottom:6px;"></div>
+        <button class="btn-primary" id="mlAddBtn" type="button">Add Item</button>
+      </div>
+
+      <div class="card">
+        <h2>Edit Existing Item</h2>
+        <div class="code-input-row">
+          <input type="text" id="mlSearchInput" placeholder="Search by Material code">
+          <button type="button" class="btn-secondary scan-btn" id="mlSearchBtn">Search</button>
+        </div>
+        <div class="table-scroll" style="margin-top:12px;">
+          <table id="mlSearchTable">
+            <thead>
+              <tr><th>Material</th><th>Description</th><th>UOM</th><th>EAN/UPC</th><th></th></tr>
+            </thead>
+            <tbody id="mlSearchBody"></tbody>
+          </table>
+          <div class="preview-empty" id="mlSearchEmpty">Search for a Material code to edit its Master List entries.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Bulk Update via Excel</h2>
+        <div class="autofill-note">Expected columns: Material, Material Description, Sales unit, EAN/UPC (same format as the Master List export).</div>
+        <div class="field" style="margin-top:10px;">
+          <input type="file" id="mlImportFile" accept=".xlsx,.xls,.csv">
+        </div>
+        <div id="mlImportStatus" style="font-size:12.5px; min-height:16px; margin-bottom:6px;"></div>
+        <button class="btn-primary" id="mlImportBtn" type="button">Upload &amp; Process</button>
+      </div>
+    </div>
+
   </div>
 
   <input type="file" id="barcodeFileInput" accept="image/*" capture="environment" style="display:none;">
@@ -807,6 +863,23 @@
       <div class="btn-row">
         <button class="btn-secondary" id="editCancelBtn" type="button">Cancel</button>
         <button class="btn-primary" id="editSaveBtn" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="mlEditModal" class="scanner-modal">
+    <div class="scanner-box" style="max-width:420px; text-align:left;">
+      <h3 style="text-align:left;">Edit Master List Item</h3>
+      <div class="field"><label>Material</label><input type="text" id="mlEditMaterial"></div>
+      <div class="field"><label>Description</label><input type="text" id="mlEditDescription"></div>
+      <div class="row2">
+        <div class="field"><label>UOM</label><input type="text" id="mlEditUom"></div>
+        <div class="field"><label>EAN/UPC</label><input type="text" id="mlEditEan"></div>
+      </div>
+      <div id="mlEditStatus" style="font-size:12.5px; min-height:16px;"></div>
+      <div class="btn-row">
+        <button class="btn-secondary" id="mlEditCancelBtn" type="button">Cancel</button>
+        <button class="btn-primary" id="mlEditSaveBtn" type="button">Save</button>
       </div>
     </div>
   </div>
@@ -1018,6 +1091,7 @@
       document.getElementById('navPendingBtn').style.display = 'inline-block';
       document.getElementById('navReportBtn').style.display = 'inline-block';
       document.getElementById('navAdminBtn').style.display = 'inline-block';
+      document.getElementById('navMasterlistBtn').style.display = 'inline-block';
       switchTab('entry');
     }
 
@@ -1064,11 +1138,13 @@
       document.getElementById('pendingTab').style.display = tab === 'pending' ? 'block' : 'none';
       document.getElementById('reportTab').style.display = tab === 'report' ? 'block' : 'none';
       document.getElementById('adminTab').style.display = tab === 'admin' ? 'block' : 'none';
+      document.getElementById('masterlistTab').style.display = tab === 'masterlist' ? 'block' : 'none';
 
       document.getElementById('navEntryBtn').classList.toggle('active', tab === 'entry');
       document.getElementById('navPendingBtn').classList.toggle('active', tab === 'pending');
       document.getElementById('navReportBtn').classList.toggle('active', tab === 'report');
       document.getElementById('navAdminBtn').classList.toggle('active', tab === 'admin');
+      document.getElementById('navMasterlistBtn').classList.toggle('active', tab === 'masterlist');
 
       if (tab === 'pending') loadPendingEntries();
       if (tab === 'admin') loadAdminEntries();
@@ -1078,6 +1154,7 @@
     document.getElementById('navPendingBtn').addEventListener('click', function () { switchTab('pending'); });
     document.getElementById('navReportBtn').addEventListener('click', function () { switchTab('report'); });
     document.getElementById('navAdminBtn').addEventListener('click', function () { switchTab('admin'); });
+    document.getElementById('navMasterlistBtn').addEventListener('click', function () { switchTab('masterlist'); });
 
     // ---------- Auto-caps on text inputs ----------
     ['productCode', 'claimBy', 'submittedBy', 'editProductCode', 'editClaimBy', 'editSubmittedBy'].forEach(function (id) {
@@ -1929,6 +2006,276 @@
           alert('Could not delete: ' + (err && err.message ? err.message : 'unknown error'));
         });
     }
+
+    // ==================================================================
+    // ======================= UPDATE MASTERLIST TAB =======================
+    // ==================================================================
+
+    // Keeps the in-memory Master List lookup (used by New Entry) in sync
+    // after an add/edit/import here, without needing to log out and back in.
+    function refreshMasterList() {
+      callGet('masterlist-list')
+        .then(function (rows) {
+          masterMap = {};
+          rows.forEach(function (row) { masterMap[row.ean] = row; });
+        })
+        .catch(function () { /* best-effort - a fresh login will resync anyway */ });
+    }
+
+    // ---------- Add New Item ----------
+    document.getElementById('mlAddBtn').addEventListener('click', function () {
+      var material = document.getElementById('mlAddMaterial').value.trim();
+      var description = document.getElementById('mlAddDescription').value.trim();
+      var uom = document.getElementById('mlAddUom').value.trim();
+      var ean = document.getElementById('mlAddEan').value.trim();
+      var statusEl = document.getElementById('mlAddStatus');
+
+      if (!material || !ean) {
+        statusEl.textContent = 'Material and EAN/UPC are required.';
+        statusEl.style.color = 'var(--danger-dark)';
+        return;
+      }
+
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = 'Adding...';
+      statusEl.textContent = '';
+
+      callPost('masterlist-add', { material: material, description: description, uom: uom, ean: ean })
+        .then(function () {
+          btn.disabled = false;
+          btn.textContent = 'Add Item';
+          statusEl.textContent = 'Item added.';
+          statusEl.style.color = 'var(--success)';
+          document.getElementById('mlAddMaterial').value = '';
+          document.getElementById('mlAddDescription').value = '';
+          document.getElementById('mlAddUom').value = '';
+          document.getElementById('mlAddEan').value = '';
+          refreshMasterList();
+        })
+        .catch(function (err) {
+          btn.disabled = false;
+          btn.textContent = 'Add Item';
+          statusEl.textContent = (err && err.message) ? err.message : 'Could not add item.';
+          statusEl.style.color = 'var(--danger-dark)';
+        });
+    });
+
+    // ---------- Edit Existing Item (search) ----------
+    var mlSearchResults = [];
+
+    function runMlSearch() {
+      var q = document.getElementById('mlSearchInput').value.trim();
+      var body = document.getElementById('mlSearchBody');
+      var empty = document.getElementById('mlSearchEmpty');
+      if (!q) {
+        body.innerHTML = '';
+        empty.textContent = 'Search for a Material code to edit its Master List entries.';
+        empty.style.display = 'block';
+        return;
+      }
+
+      body.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#8577a3;">Searching...</td></tr>';
+      empty.style.display = 'none';
+
+      callGet('masterlist-search?material=' + encodeURIComponent(q))
+        .then(function (rows) {
+          mlSearchResults = rows;
+          renderMlSearchResults();
+        })
+        .catch(function (err) {
+          body.innerHTML = '';
+          empty.textContent = 'Search failed: ' + (err && err.message ? err.message : 'unknown error');
+          empty.style.display = 'block';
+        });
+    }
+
+    function renderMlSearchResults() {
+      var body = document.getElementById('mlSearchBody');
+      var empty = document.getElementById('mlSearchEmpty');
+      body.innerHTML = '';
+
+      if (mlSearchResults.length === 0) {
+        empty.textContent = 'No matching items found.';
+        empty.style.display = 'block';
+        return;
+      }
+      empty.style.display = 'none';
+
+      mlSearchResults.forEach(function (row, i) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td>' + escapeHtml(row.material) + '</td>' +
+          '<td>' + escapeHtml(row.description) + '</td>' +
+          '<td>' + escapeHtml(row.uom) + '</td>' +
+          '<td>' + escapeHtml(row.ean) + '</td>' +
+          '<td class="row-actions"></td>';
+        var actionsTd = tr.querySelector('.row-actions');
+        var editBtn = document.createElement('button');
+        editBtn.textContent = 'Edit';
+        editBtn.className = 'btn-secondary';
+        editBtn.addEventListener('click', function () { openMlEditModal(i); });
+        actionsTd.appendChild(editBtn);
+        body.appendChild(tr);
+      });
+    }
+
+    document.getElementById('mlSearchBtn').addEventListener('click', runMlSearch);
+    document.getElementById('mlSearchInput').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); runMlSearch(); }
+    });
+
+    // ---------- Edit modal ----------
+    var mlEditingId = null;
+
+    function openMlEditModal(i) {
+      var row = mlSearchResults[i];
+      mlEditingId = row.id;
+      document.getElementById('mlEditMaterial').value = row.material || '';
+      document.getElementById('mlEditDescription').value = row.description || '';
+      document.getElementById('mlEditUom').value = row.uom || '';
+      document.getElementById('mlEditEan').value = row.ean || '';
+      document.getElementById('mlEditStatus').textContent = '';
+      document.getElementById('mlEditModal').classList.add('open');
+    }
+
+    document.getElementById('mlEditCancelBtn').addEventListener('click', function () {
+      document.getElementById('mlEditModal').classList.remove('open');
+      mlEditingId = null;
+    });
+
+    document.getElementById('mlEditSaveBtn').addEventListener('click', function () {
+      if (mlEditingId === null) return;
+      var material = document.getElementById('mlEditMaterial').value.trim();
+      var description = document.getElementById('mlEditDescription').value.trim();
+      var uom = document.getElementById('mlEditUom').value.trim();
+      var ean = document.getElementById('mlEditEan').value.trim();
+      var statusEl = document.getElementById('mlEditStatus');
+
+      if (!material || !ean) {
+        statusEl.textContent = 'Material and EAN/UPC are required.';
+        statusEl.style.color = 'var(--danger-dark)';
+        return;
+      }
+
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      callPost('masterlist-update', { id: mlEditingId, material: material, description: description, uom: uom, ean: ean })
+        .then(function () {
+          btn.disabled = false;
+          btn.textContent = 'Save';
+          document.getElementById('mlEditModal').classList.remove('open');
+          mlEditingId = null;
+          runMlSearch();
+          refreshMasterList();
+        })
+        .catch(function (err) {
+          btn.disabled = false;
+          btn.textContent = 'Save';
+          statusEl.textContent = (err && err.message) ? err.message : 'Could not save.';
+          statusEl.style.color = 'var(--danger-dark)';
+        });
+    });
+
+    // ---------- Bulk Update via Excel ----------
+    function normalizeMlHeader(h) {
+      return String(h || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
+    var ML_HEADER_ALIASES = {
+      material: ['material'],
+      description: ['materialdescription', 'description'],
+      uom: ['salesunit', 'uom', 'unit'],
+      ean: ['eanupc', 'ean', 'upc', 'barcode']
+    };
+    function mapMlExcelRows(rawRows) {
+      if (rawRows.length === 0) return [];
+      var sampleKeys = Object.keys(rawRows[0]);
+      var normKeys = sampleKeys.map(normalizeMlHeader);
+      function findKey(aliases) {
+        var idx = normKeys.findIndex(function (k) { return aliases.indexOf(k) !== -1; });
+        return idx === -1 ? null : sampleKeys[idx];
+      }
+      var materialKey = findKey(ML_HEADER_ALIASES.material);
+      var descriptionKey = findKey(ML_HEADER_ALIASES.description);
+      var uomKey = findKey(ML_HEADER_ALIASES.uom);
+      var eanKey = findKey(ML_HEADER_ALIASES.ean);
+
+      return rawRows.map(function (r) {
+        return {
+          material: materialKey ? String(r[materialKey] || '').trim() : '',
+          description: descriptionKey ? String(r[descriptionKey] || '').trim() : '',
+          uom: uomKey ? String(r[uomKey] || '').trim() : '',
+          ean: eanKey ? String(r[eanKey] || '').trim() : ''
+        };
+      });
+    }
+
+    document.getElementById('mlImportBtn').addEventListener('click', function () {
+      var fileInput = document.getElementById('mlImportFile');
+      var file = fileInput.files && fileInput.files[0];
+      var statusEl = document.getElementById('mlImportStatus');
+
+      if (!file) {
+        statusEl.textContent = 'Please choose a file first.';
+        statusEl.style.color = 'var(--danger-dark)';
+        return;
+      }
+
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = 'Processing...';
+      statusEl.textContent = 'Reading file...';
+      statusEl.style.color = '#8577a3';
+
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        var rows;
+        try {
+          var data = new Uint8Array(e.target.result);
+          var workbook = XLSX.read(data, { type: 'array' });
+          var sheet = workbook.Sheets[workbook.SheetNames[0]];
+          var rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+          rows = mapMlExcelRows(rawRows).filter(function (r) { return r.ean; });
+        } catch (err) {
+          btn.disabled = false;
+          btn.textContent = 'Upload & Process';
+          statusEl.textContent = 'Could not read file: ' + (err && err.message ? err.message : 'unknown error');
+          statusEl.style.color = 'var(--danger-dark)';
+          return;
+        }
+
+        if (rows.length === 0) {
+          btn.disabled = false;
+          btn.textContent = 'Upload & Process';
+          statusEl.textContent = 'No valid rows found - check that the file has Material / Material Description / Sales unit / EAN-UPC columns.';
+          statusEl.style.color = 'var(--danger-dark)';
+          return;
+        }
+
+        statusEl.textContent = 'Uploading ' + rows.length + ' row(s)...';
+
+        callPost('masterlist-import', { rows: rows })
+          .then(function (result) {
+            btn.disabled = false;
+            btn.textContent = 'Upload & Process';
+            statusEl.textContent =
+              result.added + ' item(s) added, ' + result.changed + ' item(s) updated, ' +
+              result.skipped + ' duplicate(s) skipped.';
+            statusEl.style.color = 'var(--success)';
+            fileInput.value = '';
+            refreshMasterList();
+          })
+          .catch(function (err) {
+            btn.disabled = false;
+            btn.textContent = 'Upload & Process';
+            statusEl.textContent = 'Import failed: ' + (err && err.message ? err.message : 'unknown error');
+            statusEl.style.color = 'var(--danger-dark)';
+          });
+      };
+      reader.readAsArrayBuffer(file);
+    });
 
     renderPreview();
   </script>
