@@ -2254,25 +2254,56 @@
           return;
         }
 
-        statusEl.textContent = 'Uploading ' + rows.length + ' row(s)...';
+        // Large catalog exports can have several thousand rows. Sending
+        // them all in a single request used to time out server-side
+        // partway through (showing up here as "Failed to fetch" with
+        // only a handful of rows actually saved), so the upload is split
+        // into smaller batches and sent sequentially, with the running
+        // totals shown as each batch completes.
+        var BATCH_SIZE = 500;
+        var batches = [];
+        for (var i = 0; i < rows.length; i += BATCH_SIZE) {
+          batches.push(rows.slice(i, i + BATCH_SIZE));
+        }
 
-        callPost('masterlist-import', { rows: rows })
-          .then(function (result) {
+        var totals = { added: 0, changed: 0, skipped: 0 };
+
+        function runBatch(index) {
+          if (index >= batches.length) {
             btn.disabled = false;
             btn.textContent = 'Upload & Process';
             statusEl.textContent =
-              result.added + ' item(s) added, ' + result.changed + ' item(s) updated, ' +
-              result.skipped + ' duplicate(s) skipped.';
+              totals.added + ' item(s) added, ' + totals.changed + ' item(s) updated, ' +
+              totals.skipped + ' duplicate(s) skipped.';
             statusEl.style.color = 'var(--success)';
             fileInput.value = '';
             refreshMasterList();
-          })
-          .catch(function (err) {
-            btn.disabled = false;
-            btn.textContent = 'Upload & Process';
-            statusEl.textContent = 'Import failed: ' + (err && err.message ? err.message : 'unknown error');
-            statusEl.style.color = 'var(--danger-dark)';
-          });
+            return;
+          }
+
+          statusEl.textContent = 'Uploading batch ' + (index + 1) + ' of ' + batches.length +
+            ' (' + rows.length + ' row(s) total)...';
+
+          callPost('masterlist-import', { rows: batches[index] })
+            .then(function (result) {
+              totals.added += result.added || 0;
+              totals.changed += result.changed || 0;
+              totals.skipped += result.skipped || 0;
+              runBatch(index + 1);
+            })
+            .catch(function (err) {
+              btn.disabled = false;
+              btn.textContent = 'Upload & Process';
+              statusEl.textContent =
+                'Import failed partway through (after ' + (totals.added + totals.changed + totals.skipped) +
+                ' of ' + rows.length + ' row(s)): ' + (err && err.message ? err.message : 'unknown error') +
+                '. Already-processed rows were saved - you can re-upload the same file to pick up where it stopped, duplicates will just be skipped.';
+              statusEl.style.color = 'var(--danger-dark)';
+              refreshMasterList();
+            });
+        }
+
+        runBatch(0);
       };
       reader.readAsArrayBuffer(file);
     });
