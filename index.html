@@ -42,7 +42,7 @@
     }
 
     .container {
-      max-width: 1100px;
+      max-width: 1400px;
       margin: 0 auto;
       padding: 20px 16px 60px;
     }
@@ -51,7 +51,7 @@
     .tab-nav {
       display: flex;
       gap: 8px;
-      max-width: 1100px;
+      max-width: 1400px;
       margin: 0 auto;
       padding: 14px 16px 0;
     }
@@ -470,6 +470,57 @@
       background: #fff4e0;
       color: #8a5a00;
     }
+
+    /* ---------- Printable report ---------- */
+    .print-header {
+      display: none;
+    }
+    @media print {
+      /* Hide everything except the report content itself. */
+      header, .tab-nav, #pendingGIBanner, #reportControls, #reportSummary {
+        display: none !important;
+      }
+      body, .container { background: #fff; }
+      .card {
+        box-shadow: none;
+        border: none;
+        padding: 0;
+      }
+      .print-header {
+        display: block;
+        margin-bottom: 14px;
+      }
+      .print-header h1 {
+        margin: 0 0 2px;
+        font-size: 19px;
+        color: #000;
+      }
+      .print-header .print-sub {
+        font-size: 12px;
+        color: #555;
+      }
+      .print-stats {
+        display: flex;
+        gap: 18px;
+        margin: 10px 0 16px;
+        font-size: 12.5px;
+      }
+      .print-stats b { color: #000; }
+      table#reportTable {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+      }
+      table#reportTable th, table#reportTable td {
+        border: 1px solid #999;
+        padding: 4px 6px;
+      }
+      .status-badge {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .table-scroll { overflow: visible !important; }
+    }
   </style>
 </head>
 <body>
@@ -710,12 +761,22 @@
     <div id="reportTab" style="display:none;">
       <div class="card">
         <h2>Summary Report</h2>
-        <div class="row2" style="align-items:end;">
+
+        <!-- Shown only in the print stylesheet, replaces the controls above. -->
+        <div class="print-header">
+          <h1>SHBN - Own Use Log — Summary Report</h1>
+          <div class="print-sub" id="printReportMonthLabel"></div>
+          <div class="print-sub" id="printReportGeneratedLabel"></div>
+          <div class="print-stats" id="printReportStats"></div>
+        </div>
+
+        <div class="row2" id="reportControls" style="align-items:end;">
           <div class="field" style="margin-bottom:0;">
             <label>Month</label>
             <input type="month" id="reportMonth">
           </div>
-          <div style="text-align:right;">
+          <div style="text-align:right; display:flex; gap:8px; justify-content:flex-end;">
+            <button class="btn-secondary" id="printReportBtn" type="button" style="display:none;">Print</button>
             <button class="btn-primary" id="runReportBtn" type="button">Run</button>
           </div>
         </div>
@@ -1804,6 +1865,7 @@
       btn.disabled = true;
       btn.textContent = 'Running...';
       document.getElementById('reportSummary').style.display = 'none';
+      document.getElementById('printReportBtn').style.display = 'none';
       document.getElementById('reportBody').innerHTML = '';
       document.getElementById('reportEmpty').textContent = 'Loading...';
       document.getElementById('reportEmpty').style.display = 'block';
@@ -1812,7 +1874,7 @@
         .then(function (result) {
           btn.disabled = false;
           btn.textContent = 'Run';
-          renderReport(result);
+          renderReport(result, month);
         })
         .catch(function (err) {
           btn.disabled = false;
@@ -1823,10 +1885,15 @@
         });
     });
 
-    function renderReport(result) {
+    document.getElementById('printReportBtn').addEventListener('click', function () {
+      window.print();
+    });
+
+    function renderReport(result, month) {
       var body = document.getElementById('reportBody');
       var empty = document.getElementById('reportEmpty');
       var summary = document.getElementById('reportSummary');
+      var printBtn = document.getElementById('printReportBtn');
       body.innerHTML = '';
 
       document.getElementById('reportTotalCount').textContent = result.totalCount;
@@ -1834,12 +1901,32 @@
       document.getElementById('reportPendingCount').textContent = result.pendingCount;
       summary.style.display = 'block';
 
+      // Print-only header: month, generated-at timestamp, and the same
+      // stats shown as plain text so they survive onto paper.
+      var monthLabel = month;
+      try {
+        var parts = month.split('-');
+        var monthDate = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
+        monthLabel = monthDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      } catch (e) { /* fall back to raw YYYY-MM */ }
+      document.getElementById('printReportMonthLabel').textContent = monthLabel;
+      document.getElementById('printReportGeneratedLabel').textContent =
+        'Generated ' + new Date().toLocaleString('en-GB', {
+          day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+      document.getElementById('printReportStats').innerHTML =
+        '<span><b>' + result.totalCount + '</b> Total</span>' +
+        '<span><b>' + result.completedCount + '</b> Completed</span>' +
+        '<span><b>' + result.pendingCount + '</b> Pending</span>';
+
       if (!result.entries || result.entries.length === 0) {
         empty.textContent = 'No entries found for this month.';
         empty.style.display = 'block';
+        printBtn.style.display = 'none';
         return;
       }
       empty.style.display = 'none';
+      printBtn.style.display = 'inline-block';
 
       result.entries.forEach(function (e) {
         var isCompleted = e.status === 'Completed';
