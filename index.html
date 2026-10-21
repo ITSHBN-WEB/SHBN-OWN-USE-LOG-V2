@@ -521,6 +521,430 @@
       }
       .table-scroll { overflow: visible !important; }
     }
+
+    /* =========================================================
+       SHBN MODERN CORPORATE REDESIGN
+       Keeps the original element IDs and application logic intact.
+       ========================================================= */
+    :root {
+      --purple-bg: #f4f5fb;
+      --purple-mid: #d9d2f3;
+      --purple-dark: #6246b5;
+      --purple-darker: #38286f;
+      --text: #28243b;
+      --card-bg: #ffffff;
+      --danger: #d9534f;
+      --danger-dark: #b8433f;
+      --success: #24845b;
+      --sidebar-width: 236px;
+      --topbar-height: 68px;
+      --line: #e8e5f2;
+      --muted: #77748c;
+    }
+
+    body {
+      background: #f4f5fb;
+      color: var(--text);
+      font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    header {
+      background: linear-gradient(110deg, #332568 0%, #6046ad 55%, #745ac3 100%);
+      min-height: var(--topbar-height);
+      padding: 18px 28px;
+      text-align: left;
+      position: relative;
+      z-index: 100;
+      box-shadow: 0 3px 14px rgba(43, 30, 91, .13);
+    }
+
+    header h1 {
+      font-size: 21px;
+      font-weight: 750;
+      letter-spacing: .1px;
+    }
+
+    .container {
+      max-width: 1600px;
+      padding: 24px 28px 48px;
+    }
+
+    /* Sidebar only appears after successful sign-in. */
+    .app-ready header {
+      position: fixed;
+      top: 0;
+      left: var(--sidebar-width);
+      right: 0;
+      height: var(--topbar-height);
+      min-height: var(--topbar-height);
+      display: flex;
+      align-items: center;
+      padding: 0 30px;
+    }
+
+    .app-ready header h1 {
+      font-size: 20px;
+    }
+
+    .app-ready header h1::before {
+      content: "SHBN";
+      display: inline-block;
+      font-weight: 850;
+      margin-right: 16px;
+      padding-right: 16px;
+      border-right: 1px solid rgba(255,255,255,.28);
+      letter-spacing: .6px;
+    }
+
+    .app-ready .tab-nav {
+      position: fixed !important;
+      display: flex !important;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 7px;
+      top: var(--topbar-height);
+      left: 0;
+      bottom: 0;
+      width: var(--sidebar-width);
+      max-width: none;
+      margin: 0;
+      padding: 24px 14px 20px;
+      background: #282052;
+      z-index: 90;
+      overflow-y: auto;
+      box-shadow: 4px 0 18px rgba(33, 24, 76, .08);
+    }
+
+    .app-ready .tab-nav::before {
+      content: "WORKSPACE";
+      color: #a9a1d2;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      padding: 2px 12px 12px;
+    }
+
+    .app-ready .tab-btn {
+      display: flex !important;
+      align-items: center;
+      width: 100%;
+      min-height: 44px;
+      text-align: left;
+      background: transparent;
+      color: #d9d4ef;
+      border-radius: 9px;
+      padding: 12px 13px;
+      font-size: 13px;
+      font-weight: 600;
+      border: 1px solid transparent;
+      transition: background .15s ease, color .15s ease;
+    }
+
+    .app-ready .tab-btn:hover {
+      opacity: 1;
+      background: rgba(255,255,255,.08);
+      color: #fff;
+    }
+
+    .app-ready .tab-btn.active {
+      background: linear-gradient(100deg, #765bd0, #6045b2);
+      color: #fff;
+      box-shadow: 0 5px 12px rgba(12, 8, 40, .18);
+    }
+
+    .app-ready .tab-btn::before {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      margin-right: 9px;
+      font-size: 15px;
+    }
+    .app-ready #navEntryBtn::before { content: "＋"; }
+    .app-ready #navPendingBtn::before { content: "▤"; }
+    .app-ready #navReportBtn::before { content: "▥"; }
+    .app-ready #navAdminBtn::before { content: "⚙"; }
+    .app-ready #navMasterlistBtn::before { content: "▣"; }
+
+    .app-ready #mainContent {
+      margin-left: var(--sidebar-width);
+      margin-top: var(--topbar-height);
+      max-width: none;
+      width: auto;
+      padding: 26px clamp(18px, 3vw, 42px) 50px;
+    }
+
+    .app-ready #pendingGIBanner {
+      margin-bottom: 18px;
+      padding: 13px 16px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(138, 90, 0, .04);
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #ece9f5;
+      border-radius: 14px;
+      padding: 23px;
+      margin-bottom: 20px;
+      box-shadow: 0 5px 20px rgba(46, 34, 94, .045);
+    }
+
+    .card h2 {
+      color: #3d2b83;
+      font-size: 16px;
+      font-weight: 750;
+      border-bottom: 1px solid #e9e4f7;
+      padding-bottom: 12px;
+      margin-bottom: 18px;
+    }
+
+    .field { margin-bottom: 15px; }
+
+    .field label {
+      color: #51447f;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .field input, .field select, .custom-select-display {
+      min-height: 40px;
+      border: 1px solid #d8d1ee;
+      border-radius: 8px;
+      background: #fcfbff;
+      color: #302a48;
+      padding: 10px 12px;
+      transition: border-color .15s, box-shadow .15s, background .15s;
+    }
+
+    .field input:focus, .field select:focus, .custom-select-display:focus {
+      outline: none;
+      border-color: #775ed0;
+      box-shadow: 0 0 0 3px rgba(119, 94, 208, .12);
+    }
+
+    .field input[readonly] {
+      background: #f3f1f9;
+      color: #77718e;
+    }
+
+    .field input:disabled, .field select:disabled {
+      opacity: .7;
+      cursor: not-allowed;
+    }
+
+    .row2 { gap: 14px; }
+
+    .autofill-note {
+      color: #77718e;
+      font-size: 11.5px;
+      line-height: 1.5;
+    }
+
+    .custom-select-panel {
+      border-color: #d8d1ee;
+      border-radius: 10px;
+      box-shadow: 0 12px 28px rgba(44, 32, 93, .16);
+    }
+
+    .gl-option:hover { background: #f4f1fd; }
+
+    button {
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-weight: 650;
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    button:not(:disabled):active { transform: translateY(1px); }
+
+    .btn-primary {
+      background: #6246b5;
+      color: #fff;
+      box-shadow: 0 2px 5px rgba(98, 70, 181, .14);
+    }
+    .btn-primary:hover { background: #51379e; }
+    .btn-secondary {
+      background: #eee9fb;
+      color: #4b378d;
+    }
+    .btn-secondary:hover { background: #e1d8f8; }
+    .btn-success { background: #25845c; color: #fff; }
+    .btn-danger { background: #c94d50; color: #fff; }
+
+    .btn-row { gap: 10px; margin-top: 10px; }
+
+    table {
+      font-size: 12.5px;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    th, td {
+      padding: 11px 10px;
+      border-bottom: 1px solid #eeebf6;
+      vertical-align: middle;
+    }
+
+    th {
+      background: #f7f5fc;
+      color: #51447f;
+      font-size: 10.5px;
+      letter-spacing: .45px;
+    }
+
+    thead th:first-child { border-top-left-radius: 7px; }
+    thead th:last-child { border-top-right-radius: 7px; }
+    tbody tr:hover { background: #faf9fe; }
+
+    .table-scroll {
+      border: 1px solid #eeebf6;
+      border-radius: 9px;
+      background: #fff;
+    }
+
+    .table-scroll table { min-width: 720px; }
+
+    .preview-empty {
+      color: #8b86a0;
+      padding: 24px 12px;
+    }
+
+    .report-stat {
+      background: linear-gradient(145deg, #f6f3ff, #efebfc);
+      border: 1px solid #e7e0fa;
+      border-radius: 11px;
+      padding: 16px 12px;
+    }
+    .report-stat-num {
+      font-size: 25px;
+      color: #4c3597;
+    }
+    .report-stat-label {
+      color: #79718f;
+      font-size: 10.5px;
+      font-weight: 750;
+      letter-spacing: .55px;
+    }
+
+    .status-badge { padding: 4px 9px; }
+    .status-badge.completed { background: #e3f6eb; color: #21774f; }
+    .status-badge.pending { background: #fff0d9; color: #8a5a00; }
+
+    #statusBanner { border-radius: 9px; }
+
+    /* New Entry welcome panel */
+    .welcome-panel {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      padding: 22px 25px;
+      margin-bottom: 20px;
+      border: 1px solid #e4ddf8;
+      border-radius: 14px;
+      background:
+        radial-gradient(circle at 92% 10%, rgba(255,255,255,.45), transparent 28%),
+        linear-gradient(115deg, #e9e2fb 0%, #f7f5ff 58%, #fff 100%);
+      box-shadow: 0 4px 16px rgba(46, 34, 94, .035);
+    }
+
+    .welcome-copy { min-width: 0; }
+    .welcome-eyebrow {
+      color: #7058b8;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      margin-bottom: 8px;
+    }
+    .welcome-panel h2 {
+      margin: 0 0 6px;
+      padding: 0;
+      border: 0;
+      color: #35246f;
+      font-size: clamp(22px, 2.4vw, 29px);
+      font-weight: 800;
+      letter-spacing: -.5px;
+    }
+    .welcome-panel p {
+      margin: 0;
+      color: #71698b;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .welcome-date {
+      flex-shrink: 0;
+      min-width: 142px;
+      padding: 13px 16px;
+      border: 1px solid rgba(112, 88, 184, .16);
+      border-radius: 10px;
+      background: rgba(255,255,255,.72);
+      text-align: right;
+    }
+    .welcome-date-label {
+      display: block;
+      color: #8c82a8;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 1.4px;
+      margin-bottom: 5px;
+    }
+    .welcome-date strong {
+      color: #4d398f;
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    @media (max-width: 760px) {
+      :root { --sidebar-width: 0px; --topbar-height: 60px; }
+      .app-ready header {
+        left: 0;
+        padding: 0 16px;
+      }
+      .app-ready header h1 { font-size: 17px; }
+      .app-ready header h1::before { margin-right: 10px; padding-right: 10px; }
+      .app-ready .tab-nav {
+        top: var(--topbar-height);
+        bottom: auto;
+        width: 100%;
+        height: auto;
+        flex-direction: row;
+        gap: 5px;
+        padding: 8px 10px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        box-shadow: 0 3px 12px rgba(33, 24, 76, .1);
+      }
+      .app-ready .tab-nav::before { display: none; }
+      .app-ready .tab-btn {
+        width: auto;
+        min-width: max-content;
+        min-height: 38px;
+        padding: 9px 11px;
+        font-size: 11px;
+      }
+      .app-ready .tab-btn::before { width: auto; margin-right: 5px; }
+      .app-ready #mainContent {
+        margin-left: 0;
+        margin-top: calc(var(--topbar-height) + 54px);
+        padding: 16px 12px 32px;
+      }
+      .card { padding: 16px; border-radius: 11px; }
+      .welcome-panel { padding: 18px; align-items: flex-start; }
+      .welcome-date { min-width: 0; padding: 10px; }
+      .welcome-date strong { font-size: 10px; }
+      .row2 { grid-template-columns: 1fr; gap: 0; }
+      .btn-row button { min-width: 0; }
+    }
+
+    @media (max-width: 430px) {
+      .welcome-panel { flex-direction: column; }
+      .welcome-date { width: 100%; text-align: left; }
+      .code-input-row { align-items: stretch; }
+      .scan-btn { padding: 10px; }
+    }
+
   </style>
 </head>
 <body>
@@ -565,6 +989,17 @@
 
     <!-- ================= NEW ENTRY TAB ================= -->
     <div id="entryTab">
+      <section class="welcome-panel" aria-labelledby="greetingTitle">
+        <div class="welcome-copy">
+          <div class="welcome-eyebrow">SHBN · OWN USE LOG</div>
+          <h2 id="greetingTitle">Welcome!</h2>
+          <p id="greetingSubtitle">Ready to record today's own-use items?</p>
+        </div>
+        <div class="welcome-date">
+          <span class="welcome-date-label">TODAY</span>
+          <strong id="greetingDate"></strong>
+        </div>
+      </section>
       <div class="card">
         <h2>New Entry</h2>
 
@@ -1145,7 +1580,30 @@
       renderPendingGIBanner(data.pendingGI);
     }
 
+    // ---------- New Entry welcome greeting ----------
+    function updateWelcomeGreeting() {
+      var now = new Date();
+      var hour = now.getHours();
+      var greeting = hour < 12 ? 'Good morning!' :
+                     hour < 18 ? 'Good afternoon!' : 'Good evening!';
+      var title = document.getElementById('greetingTitle');
+      var subtitle = document.getElementById('greetingSubtitle');
+      var date = document.getElementById('greetingDate');
+
+      if (title) title.textContent = greeting;
+      if (subtitle) {
+        subtitle.textContent = 'Ready to record today\'s own-use items? Let\'s get started.';
+      }
+      if (date) {
+        date.textContent = now.toLocaleDateString(undefined, {
+          weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+        });
+      }
+    }
+
     function revealMainContent() {
+      document.body.classList.add('app-ready');
+      updateWelcomeGreeting();
       document.getElementById('passwordScreen').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
       document.getElementById('tabNav').style.display = 'flex';
