@@ -945,6 +945,140 @@
       .scan-btn { padding: 10px; }
     }
 
+
+    /* ---------- Sidebar pin / auto-collapse behaviour ---------- */
+    :root { --sidebar-width: 220px; }
+    .sidebar-pin-btn {
+      display: none;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      margin-right: 14px;
+      padding: 0;
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 9px;
+      background: rgba(255,255,255,.12);
+      color: #fff;
+      cursor: pointer;
+      font-size: 17px;
+    }
+    .sidebar-pin-btn:hover { background: rgba(255,255,255,.22); }
+    .app-ready .sidebar-pin-btn { display: inline-flex; }
+    .app-ready header h1 { min-width: 0; }
+
+    /* Auto mode: narrow icon rail until hovered/focused; pinned mode stays open. */
+    .app-ready.sidebar-auto-collapsed { --sidebar-width: 68px; }
+    .app-ready.sidebar-auto-collapsed .tab-nav {
+      width: 68px;
+      padding-left: 9px;
+      padding-right: 9px;
+      transition: width .18s ease;
+    }
+    .app-ready.sidebar-auto-collapsed .tab-nav::before { display: none; }
+    .app-ready.sidebar-auto-collapsed .tab-btn {
+      justify-content: center;
+      padding: 12px 5px;
+      font-size: 0;
+      white-space: nowrap;
+    }
+    .app-ready.sidebar-auto-collapsed .tab-btn::before {
+      width: 24px;
+      margin: 0;
+      font-size: 16px;
+    }
+    .app-ready.sidebar-auto-collapsed .tab-nav:hover,
+    .app-ready.sidebar-auto-collapsed .tab-nav:focus-within {
+      width: 220px;
+      padding-left: 14px;
+      padding-right: 14px;
+      z-index: 120;
+    }
+    .app-ready.sidebar-auto-collapsed .tab-nav:hover::before,
+    .app-ready.sidebar-auto-collapsed .tab-nav:focus-within::before { display: block; }
+    .app-ready.sidebar-auto-collapsed .tab-nav:hover .tab-btn,
+    .app-ready.sidebar-auto-collapsed .tab-nav:focus-within .tab-btn {
+      justify-content: flex-start;
+      padding: 12px 13px;
+      font-size: 13px;
+    }
+    .app-ready.sidebar-auto-collapsed .tab-nav:hover .tab-btn::before,
+    .app-ready.sidebar-auto-collapsed .tab-nav:focus-within .tab-btn::before {
+      width: 22px;
+      margin-right: 9px;
+    }
+    .app-ready.sidebar-pinned .tab-nav { width: var(--sidebar-width); }
+    .sidebar-pin-btn.is-pinned {
+      background: rgba(255,255,255,.25);
+      border-color: rgba(255,255,255,.65);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.1);
+    }
+    .sidebar-pin-btn.is-pinned::after { content: ""; }
+
+    /* ---------- Admin table: fit the available width without horizontal scrolling ---------- */
+    #adminTab .card { min-width: 0; }
+    #adminTab .table-scroll {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+    #adminTable {
+      width: 100%;
+      min-width: 0 !important;
+      table-layout: fixed;
+      font-size: 11px;
+    }
+    #adminTable th,
+    #adminTable td {
+      padding: 9px 5px;
+      font-size: 10.5px;
+      line-height: 1.35;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
+    #adminTable th { font-size: 9px; letter-spacing: .1px; }
+    #adminTable th:nth-child(1), #adminTable td:nth-child(1) { width: 7%; }
+    #adminTable th:nth-child(2), #adminTable td:nth-child(2) { width: 9%; }
+    #adminTable th:nth-child(3), #adminTable td:nth-child(3) { width: 15%; }
+    #adminTable th:nth-child(4), #adminTable td:nth-child(4) { width: 8%; }
+    #adminTable th:nth-child(5), #adminTable td:nth-child(5) { width: 5%; text-align: center; }
+    #adminTable th:nth-child(6), #adminTable td:nth-child(6) { width: 5%; text-align: center; }
+    #adminTable th:nth-child(7), #adminTable td:nth-child(7) { width: 8%; }
+    #adminTable th:nth-child(8), #adminTable td:nth-child(8) { width: 9%; }
+    #adminTable th:nth-child(9), #adminTable td:nth-child(9) { width: 10%; }
+    #adminTable th:nth-child(10), #adminTable td:nth-child(10) { width: 10%; }
+    #adminTable th:nth-child(11), #adminTable td:nth-child(11) { width: 14%; }
+    #adminTable td.row-actions { white-space: normal; }
+    #adminTable td.row-actions button {
+      min-width: 30px;
+      margin: 2px;
+      padding: 6px 7px;
+      font-size: 12px;
+    }
+    #adminTab .card > div:first-of-type {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 10px;
+    }
+    @media (max-width: 1100px) and (min-width: 761px) {
+      #adminTable th, #adminTable td { padding: 7px 3px; font-size: 9.5px; }
+      #adminTable th { font-size: 8px; }
+      #adminTable td.row-actions button { min-width: 26px; padding: 5px; }
+    }
+    @media (max-width: 760px) {
+      .app-ready .sidebar-pin-btn { display: none; }
+      .app-ready.sidebar-auto-collapsed .tab-nav,
+      .app-ready.sidebar-pinned .tab-nav { width: 100%; }
+      #adminTab .table-scroll { overflow-x: hidden; }
+      #adminTable { table-layout: auto; }
+      #adminTable th, #adminTable td { font-size: 9px; padding: 6px 3px; }
+      #adminTable th:nth-child(3), #adminTable td:nth-child(3) { width: 15%; }
+      #adminTable td.row-actions button { display: block; width: 100%; margin: 2px 0; }
+    }
+
   </style>
 </head>
 <body>
@@ -955,6 +1089,7 @@
   </div>
 
   <header>
+    <button id="sidebarPinBtn" class="sidebar-pin-btn" type="button" aria-pressed="false" aria-label="Pin sidebar open" title="Pin sidebar open; otherwise it auto-collapses">📌</button>
     <h1>SHBN - Own Use Log</h1>
   </header>
 
@@ -1613,6 +1748,43 @@
       document.getElementById('navMasterlistBtn').style.display = 'inline-block';
       switchTab('entry');
     }
+
+    // ---------- Sidebar pin / automatic collapse preference ----------
+    (function setupSidebarPreference() {
+      var pinBtn = document.getElementById('sidebarPinBtn');
+      var storageKey = 'shbn-sidebar-pinned';
+      var pinned = true;
+      try {
+        var saved = window.localStorage.getItem(storageKey);
+        // Default to auto-collapse unless the user previously pinned it open.
+        pinned = saved === 'true';
+      } catch (e) {
+        pinned = false;
+      }
+
+      function applySidebarMode() {
+        var body = document.body;
+        body.classList.toggle('sidebar-pinned', pinned);
+        body.classList.toggle('sidebar-auto-collapsed', !pinned && window.innerWidth > 760);
+        if (pinBtn) {
+          pinBtn.classList.toggle('is-pinned', pinned);
+          pinBtn.setAttribute('aria-pressed', pinned ? 'true' : 'false');
+          pinBtn.setAttribute('aria-label', pinned ? 'Unpin sidebar and enable auto-collapse' : 'Pin sidebar open');
+          pinBtn.title = pinned ? 'Pinned open — click to enable auto-collapse' : 'Auto-collapse enabled — click to keep sidebar open';
+          pinBtn.textContent = pinned ? '📌' : '📍';
+        }
+      }
+
+      if (pinBtn) {
+        pinBtn.addEventListener('click', function () {
+          pinned = !pinned;
+          try { window.localStorage.setItem(storageKey, pinned ? 'true' : 'false'); } catch (e) {}
+          applySidebarMode();
+        });
+      }
+      window.addEventListener('resize', applySidebarMode);
+      applySidebarMode();
+    })();
 
     // ---------- Password gate ----------
     function checkPassword() {
