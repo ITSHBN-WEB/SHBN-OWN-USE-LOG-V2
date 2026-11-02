@@ -2275,7 +2275,7 @@
     var sapSelected = [];         // entries carried into the Copy to SAP screen
     var sapBatchIndex = 0;
 
-    function entryKey(e) { return e.id; }
+    function entryKey(e) { return String(e.id); } // always a string: matches checkbox data-key (DOM attrs are strings, Neon ids are numbers)
 
     function loadPendingEntries() {
       document.getElementById('pendingListCard').style.display = 'block';
@@ -2390,7 +2390,7 @@
     document.getElementById('refreshPendingBtn').addEventListener('click', loadPendingEntries);
 
     document.getElementById('pendingContinueBtn').addEventListener('click', function () {
-      sapSelected = Object.keys(selectedKeys).map(function (k) { return selectedKeys[k]; });
+      sapSelected = Object.keys(selectedKeys).map(function (k) { return selectedKeys[k]; }).filter(Boolean);
       sapBatchIndex = 0;
       document.getElementById('pendingListCard').style.display = 'none';
       document.getElementById('sapBatchCard').style.display = 'block';
