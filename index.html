@@ -1098,6 +1098,101 @@
       #adminTable td.row-actions button { display: block; width: 100%; margin: 2px 0; }
     }
 
+    /* =========================================================
+       Usability pass: readability, pending badge, copy progress
+       ========================================================= */
+    :root { --muted: #5f5a76; --muted-soft: #615880; }
+
+    /* Muted helper text: darker so it meets contrast guidance on white cards. */
+    .autofill-note,
+    .preview-empty,
+    .sap-desc-col,
+    .custom-select-display.placeholder { color: var(--muted-soft); }
+    .report-stat-label { color: #5b5475; font-size: 11.5px; }
+    .field label { font-size: 12.5px; color: #42366e; }
+
+    @media screen {
+      /* Table headers/body a little larger and darker. #adminTable keeps its own
+         compact sizing (it is a fixed-layout 11-column table). */
+      th { color: #3f3270; font-size: 12px; letter-spacing: .4px; }
+      table { font-size: 13px; }
+    }
+
+    /* Visible keyboard focus. */
+    button:focus-visible,
+    .tab-btn:focus-visible,
+    #pendingGIBanner:focus-visible {
+      outline: 2px solid #8f78e0;
+      outline-offset: 2px;
+    }
+
+    /* Clickable pending banner. */
+    #pendingGIBanner { cursor: pointer; transition: background .15s ease, box-shadow .15s ease; }
+    #pendingGIBanner:hover { background: #ffecc9; }
+    #pendingGIBanner .pending-cta {
+      margin-left: auto;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    /* Pending count badge on the Pending Entry tab. */
+    .tab-btn { position: relative; }
+    .tab-badge {
+      display: inline-block;
+      margin-left: auto;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 6px;
+      border-radius: 999px;
+      background: #f0a63c;
+      color: #2b1d00;
+      font-size: 11px;
+      font-weight: 800;
+      font-style: normal;
+      letter-spacing: 0;
+      line-height: 20px;
+      text-align: center;
+    }
+    /* Collapsed sidebar: tuck the badge onto the icon's corner. */
+    .app-ready.sidebar-auto-collapsed .tab-nav:not(:hover):not(:focus-within) .tab-badge {
+      position: absolute;
+      top: 3px;
+      right: 5px;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      font-size: 10px;
+      line-height: 16px;
+    }
+    .app-ready.sidebar-auto-collapsed.sidebar-forced-collapsed .tab-nav .tab-badge {
+      position: absolute !important;
+      top: 3px;
+      right: 5px;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      font-size: 10px;
+      line-height: 16px;
+    }
+    @media (max-width: 760px) {
+      .tab-badge { margin-left: 6px; }
+    }
+
+    /* Copy to SAP: per-batch copy progress. */
+    #sapBatchCard .btn-secondary.copied {
+      background: #e3f6eb;
+      color: #1d6b47;
+      box-shadow: inset 0 0 0 1px #9fd8b8;
+    }
+    #sapProgressNote { margin: 4px 0 0; font-weight: 600; }
+    #sapProgressNote.all-done { color: #1d6b47; }
+    #materialDocError {
+      color: var(--danger-dark);
+      font-size: 12.5px;
+      min-height: 16px;
+      margin-top: 4px;
+    }
+
   </style>
 </head>
 <body>
@@ -1114,7 +1209,7 @@
 
   <div class="tab-nav" id="tabNav" style="display:none;">
     <button class="tab-btn active" id="navEntryBtn" type="button">New Entry</button>
-    <button class="tab-btn" id="navPendingBtn" type="button" style="display:none;">Pending Entry</button>
+    <button class="tab-btn" id="navPendingBtn" type="button" style="display:none;">Pending Entry<span class="tab-badge" id="pendingTabBadge" style="display:none;"></span></button>
     <button class="tab-btn" id="navReportBtn" type="button" style="display:none;">Summary Report</button>
     <button class="tab-btn" id="navAdminBtn" type="button" style="display:none;">Admin</button>
     <button class="tab-btn" id="navMasterlistBtn" type="button" style="display:none;">Update Masterlist</button>
@@ -1134,9 +1229,10 @@
 
   <div class="container" id="mainContent" style="display:none;">
 
-    <div id="pendingGIBanner">
+    <div id="pendingGIBanner" role="button" tabindex="0" title="Go to Pending Entry">
       <span class="pending-icon">⏳</span>
       <span id="pendingGIText"></span>
+      <span class="pending-cta">View →</span>
     </div>
 
     <div id="statusBanner"></div>
@@ -1330,10 +1426,12 @@
           <button class="btn-secondary" id="copyBatch3" type="button">Copy Batch 3 (Cost Center/GL)</button>
         </div>
         <div id="copyStatus" style="font-size:12.5px; color:var(--success); min-height:16px; margin-top:6px;"></div>
+        <div class="autofill-note" id="sapProgressNote"></div>
 
         <div class="field" style="margin-top:16px;">
           <label>Material Document</label>
-          <input type="text" id="materialDocumentInput" placeholder="Enter material document number">
+          <input type="text" id="materialDocumentInput" placeholder="Enter material document number (digits only)" inputmode="numeric" autocomplete="off">
+          <div id="materialDocError"></div>
         </div>
         <div class="field">
           <label>Key In By</label>
@@ -1539,7 +1637,31 @@
     var masterMap = {};   // ean -> {material, description, uom}
     var glCodes = [];
     var defaults = {};
-    var queue = [];       // entries pending submission (New Entry tab)
+    // New Entry draft protection: the queue is mirrored to localStorage on every change
+    // (renderPreview), so a refresh or accidental tab close does not lose scanned entries.
+    var DRAFT_KEY = 'shbn-ownuse-new-entry-draft-v1';
+    var DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // ignore drafts older than 7 days
+    function loadDraft() {
+      try {
+        var raw = localStorage.getItem(DRAFT_KEY);
+        if (!raw) return [];
+        var d = JSON.parse(raw);
+        if (!d || !Array.isArray(d.entries) || d.entries.length === 0) return [];
+        if (Date.now() - (d.savedAt || 0) > DRAFT_MAX_AGE_MS) {
+          localStorage.removeItem(DRAFT_KEY);
+          return [];
+        }
+        return d.entries;
+      } catch (e) { return []; }
+    }
+    function saveDraft() {
+      try {
+        if (queue.length === 0) localStorage.removeItem(DRAFT_KEY);
+        else localStorage.setItem(DRAFT_KEY, JSON.stringify({ savedAt: Date.now(), entries: queue }));
+      } catch (e) { /* storage unavailable - draft protection is best-effort */ }
+    }
+    var queue = loadDraft();   // entries pending submission (New Entry tab)
+    var restoredDraftCount = queue.length;
     var editIndex = -1;   // -1 = not editing, else index in queue being edited
     var apiKey = '';      // whatever the person types on the password screen - sent as x-api-key and checked server-side
 
@@ -1584,12 +1706,16 @@
     function renderPendingGIBanner(count) {
       var banner = document.getElementById('pendingGIBanner');
       var textEl = document.getElementById('pendingGIText');
+      var badge = document.getElementById('pendingTabBadge');
       if (!count || count <= 0) {
         banner.style.display = 'none';
+        badge.style.display = 'none';
         return;
       }
       textEl.textContent = count + ' item' + (count === 1 ? '' : 's') + ' pending GI';
       banner.style.display = 'flex';
+      badge.textContent = count > 99 ? '99+' : String(count);
+      badge.style.display = 'inline-block';
     }
 
     function escapeHtml(str) {
@@ -1874,6 +2000,19 @@
     document.getElementById('navAdminBtn').addEventListener('click', function () { switchTab('admin'); });
     document.getElementById('navMasterlistBtn').addEventListener('click', function () { switchTab('masterlist'); });
 
+    // Clicking (or pressing Enter/Space on) the pending banner jumps to Pending Entry.
+    (function wirePendingBanner() {
+      var banner = document.getElementById('pendingGIBanner');
+      function goPending() {
+        switchTab('pending');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      banner.addEventListener('click', goPending);
+      banner.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); goPending(); }
+      });
+    })();
+
     // Allow hover-to-expand again once the pointer leaves the sidebar.
     document.getElementById('tabNav').addEventListener('mouseleave', function () {
       document.body.classList.remove('sidebar-forced-collapsed');
@@ -2126,6 +2265,7 @@
 
     // ---------- Preview rendering ----------
     function renderPreview() {
+      saveDraft();
       var body = document.getElementById('previewBody');
       var empty = document.getElementById('previewEmpty');
       var countEl = document.getElementById('submitCount');
@@ -2274,6 +2414,15 @@
     var selectedKeys = {};        // key: entry id -> entry object
     var sapSelected = [];         // entries carried into the Copy to SAP screen
     var sapBatchIndex = 0;
+    var sapCopied = {};           // 'batchIndex:copyNumber' -> true once that copy succeeded
+
+    var KEYINBY_KEY = 'shbn-ownuse-keyinby';
+    function loadKeyInBy() {
+      try { return localStorage.getItem(KEYINBY_KEY) || ''; } catch (e) { return ''; }
+    }
+    function saveKeyInBy(name) {
+      try { localStorage.setItem(KEYINBY_KEY, name); } catch (e) { /* best-effort */ }
+    }
 
     function entryKey(e) { return String(e.id); } // always a string: matches checkbox data-key (DOM attrs are strings, Neon ids are numbers)
 
@@ -2290,6 +2439,7 @@
           selectedKeys = {};
           pendingPage = 0;
           renderPendingList();
+          renderPendingGIBanner(data.length);
         })
         .catch(function (err) {
           document.getElementById('pendingBody').innerHTML = '';
@@ -2395,8 +2545,10 @@
       document.getElementById('pendingListCard').style.display = 'none';
       document.getElementById('sapBatchCard').style.display = 'block';
       document.getElementById('materialDocumentInput').value = '';
-      document.getElementById('keyInByInput').value = '';
+      document.getElementById('materialDocError').textContent = '';
+      document.getElementById('keyInByInput').value = loadKeyInBy();
       document.getElementById('copyStatus').textContent = '';
+      sapCopied = {};
       renderSapBatch();
     });
 
@@ -2435,9 +2587,37 @@
 
       document.getElementById('sapBatchInfo').textContent =
         'Batch ' + (sapBatchIndex + 1) + ' of ' + totalBatches + ' - ' + batchItems.length + ' row(s)';
+      refreshCopyButtons();
     }
 
-    document.getElementById('sapRowsPerBatch').addEventListener('change', function () { sapBatchIndex = 0; renderSapBatch(); });
+    // ---------- Copy progress (✓ per copy button, per batch) ----------
+    var SAP_COPY_BTNS = [
+      { id: 'copyBatch1', n: 1, label: 'Copy Batch 1 (Material)' },
+      { id: 'copyBatch2', n: 2, label: 'Copy Batch 2 (Qty/UOM/Plant/Sloc)' },
+      { id: 'copyBatch3', n: 3, label: 'Copy Batch 3 (Cost Center/GL)' }
+    ];
+    function refreshCopyButtons() {
+      var rowsPerBatch = Math.max(1, Number(document.getElementById('sapRowsPerBatch').value) || 7);
+      var totalBatches = Math.max(1, Math.ceil(sapSelected.length / rowsPerBatch));
+      var doneHere = 0;
+      SAP_COPY_BTNS.forEach(function (b) {
+        var el = document.getElementById(b.id);
+        var isDone = !!sapCopied[sapBatchIndex + ':' + b.n];
+        if (isDone) doneHere++;
+        el.classList.toggle('copied', isDone);
+        el.textContent = (isDone ? '✓ ' : '') + b.label;
+      });
+      var fullBatches = 0;
+      for (var i = 0; i < totalBatches; i++) {
+        if (sapCopied[i + ':1'] && sapCopied[i + ':2'] && sapCopied[i + ':3']) fullBatches++;
+      }
+      var note = document.getElementById('sapProgressNote');
+      note.textContent = 'This batch: ' + doneHere + ' of 3 copied  |  Batches fully copied: ' + fullBatches + ' of ' + totalBatches +
+        (doneHere === 3 && sapBatchIndex < totalBatches - 1 ? '  -  paste into SAP, then tap Next.' : '');
+      note.classList.toggle('all-done', fullBatches === totalBatches);
+    }
+
+    document.getElementById('sapRowsPerBatch').addEventListener('change', function () { sapBatchIndex = 0; sapCopied = {}; renderSapBatch(); });
     document.getElementById('sapPrevBatch').addEventListener('click', function () {
       if (sapBatchIndex > 0) { sapBatchIndex--; renderSapBatch(); }
     });
@@ -2447,8 +2627,10 @@
       if (sapBatchIndex < totalBatches - 1) { sapBatchIndex++; renderSapBatch(); }
     });
 
-    function copyToClipboard(text) {
+    function copyToClipboard(text, copyNumber) {
       navigator.clipboard.writeText(text).then(function () {
+        sapCopied[sapBatchIndex + ':' + copyNumber] = true;
+        refreshCopyButtons();
         document.getElementById('copyStatus').textContent = 'Copied to clipboard ✓';
         setTimeout(function () { document.getElementById('copyStatus').textContent = ''; }, 2000);
       }).catch(function () {
@@ -2459,24 +2641,44 @@
     document.getElementById('copyBatch1').addEventListener('click', function () {
       var items = currentSapBatchItems();
       var text = items.map(function (e) { return e.material; }).join('\n');
-      copyToClipboard(text);
+      copyToClipboard(text, 1);
     });
     document.getElementById('copyBatch2').addEventListener('click', function () {
       var items = currentSapBatchItems();
       var text = items.map(function (e) { return [e.quantity, e.uom, e.plant, e.sloc].join('\t'); }).join('\n');
-      copyToClipboard(text);
+      copyToClipboard(text, 2);
     });
     document.getElementById('copyBatch3').addEventListener('click', function () {
       var items = currentSapBatchItems();
       var text = items.map(function (e) { return [e.costCenter, e.glCode].join('\t'); }).join('\n');
-      copyToClipboard(text);
+      copyToClipboard(text, 3);
+    });
+
+    // Material Document numbers are digits only (length varies), so strip anything else as it is typed/pasted.
+    document.getElementById('materialDocumentInput').addEventListener('input', function () {
+      var cleaned = this.value.replace(/\D/g, '');
+      var errEl = document.getElementById('materialDocError');
+      if (cleaned !== this.value) {
+        this.value = cleaned;
+        errEl.textContent = 'Digits only - other characters were removed.';
+      } else {
+        errEl.textContent = '';
+      }
     });
 
     document.getElementById('sapSubmitBtn').addEventListener('click', function () {
-      var materialDocument = document.getElementById('materialDocumentInput').value.trim();
+      var docInput = document.getElementById('materialDocumentInput');
+      var docErr = document.getElementById('materialDocError');
+      var materialDocument = docInput.value.trim();
       var keyInBy = document.getElementById('keyInByInput').value.trim();
-      if (!materialDocument) { alert('Please enter the Material Document number.'); return; }
+      if (!/^\d+$/.test(materialDocument)) {
+        docErr.textContent = 'Enter the Material Document number (digits only).';
+        docInput.focus();
+        return;
+      }
+      docErr.textContent = '';
       if (!keyInBy) { alert('Please enter who keyed this in.'); return; }
+      if (!confirm('Submit ' + sapSelected.length + ' entrie(s) with Material Document ' + materialDocument + '?')) return;
 
       var btn = this;
       btn.disabled = true;
@@ -2494,6 +2696,7 @@
         .then(function (result) {
           btn.disabled = false;
           btn.textContent = 'Submit';
+          saveKeyInBy(keyInBy);
           renderPendingGIBanner(result.pendingGI);
           document.getElementById('sapBatchCard').style.display = 'none';
           document.getElementById('pendingListCard').style.display = 'block';
@@ -3058,6 +3261,10 @@
     });
 
     renderPreview();
+    if (restoredDraftCount > 0) {
+      showStatus('ok', 'Restored ' + restoredDraftCount + ' unsaved entr' + (restoredDraftCount === 1 ? 'y' : 'ies') +
+        ' from your last session. Press Submit All to send them, or Cancel to discard.');
+    }
   </script>
 </body>
 </html>
