@@ -1193,6 +1193,98 @@
       margin-top: 4px;
     }
 
+    /* =========================================================
+       Print layout for the Summary Report.
+       The redesign made the sidebar fixed with !important rules, so these
+       overrides use higher specificity + !important and come last.
+       ========================================================= */
+    @page { size: A4 landscape; margin: 10mm; }
+    @media print {
+      html, body { background: #fff !important; }
+      body.app-ready .tab-nav,
+      body.app-ready header,
+      .sidebar-pin-btn,
+      #pendingGIBanner,
+      #statusBanner,
+      #reportControls,
+      #reportSummary,
+      #reportTab .card > h2,
+      #loadingOverlay {
+        display: none !important;
+      }
+      body.app-ready #mainContent {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: auto !important;
+        max-width: none !important;
+      }
+      body.app-ready .card {
+        box-shadow: none !important;
+        border: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      #reportTab .table-scroll {
+        border: none !important;
+        overflow: visible !important;
+        background: transparent !important;
+      }
+      table#reportTable {
+        width: 100% !important;
+        min-width: 0 !important;
+        table-layout: fixed;
+        border-collapse: collapse;
+        font-size: 9.5px;
+      }
+      table#reportTable th,
+      table#reportTable td {
+        white-space: normal !important;
+        overflow-wrap: anywhere;
+        word-break: normal;
+        padding: 3px 4px;
+        border: 1px solid #999;
+        vertical-align: top;
+        letter-spacing: 0;
+      }
+      table#reportTable th { font-size: 9px; background: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      table#reportTable thead { display: table-header-group; }
+      table#reportTable tr { break-inside: avoid; }
+      table#reportTable th:nth-child(1)  { width: 8%; }   /* Date */
+      table#reportTable th:nth-child(2)  { width: 9%; }   /* Code */
+      table#reportTable th:nth-child(3)  { width: 17%; }  /* Description */
+      table#reportTable th:nth-child(4)  { width: 7%; }   /* Material */
+      table#reportTable th:nth-child(5)  { width: 4%; }   /* Qty */
+      table#reportTable th:nth-child(6)  { width: 4%; }   /* UOM */
+      table#reportTable th:nth-child(7)  { width: 7%; }   /* GL Code */
+      table#reportTable th:nth-child(8)  { width: 8%; }   /* Dept */
+      table#reportTable th:nth-child(9)  { width: 12%; }  /* Claim By */
+      table#reportTable th:nth-child(10) { width: 8%; }   /* Submitted By */
+      table#reportTable th:nth-child(11) { width: 8%; }   /* Material Document */
+      table#reportTable th:nth-child(12) { width: 8%; }   /* Status */
+      table#reportTable .status-badge { padding: 1px 5px; font-size: 8.5px; white-space: nowrap; }
+    }
+
+    /* =========================================================
+       Update Masterlist: import preview
+       ========================================================= */
+    .ml-preview-summary {
+      background: #f3effd;
+      border: 1px solid #ddd3f5;
+      border-radius: 9px;
+      padding: 12px 14px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #3d2b83;
+      margin-bottom: 10px;
+    }
+    .ml-preview-summary .n-new { color: #1d6b47; }
+    .ml-preview-summary .n-changed { color: #4c3597; }
+    .ml-preview-summary .n-dup { color: #5f5a76; }
+    .ml-preview-summary .ml-preview-sub { display: block; margin-top: 4px; font-size: 12.5px; font-weight: 500; color: #5f5a76; }
+    .status-badge.new { background: #e3f6eb; color: #21774f; }
+    .status-badge.changed { background: #ece6fb; color: #4c3597; }
+    .status-badge.duplicate { background: #eeeef3; color: #5f5a76; }
+
   </style>
 </head>
 <body>
@@ -1569,7 +1661,24 @@
           <input type="file" id="mlImportFile" accept=".xlsx,.xls,.csv">
         </div>
         <div id="mlImportStatus" style="font-size:12.5px; min-height:16px; margin-bottom:6px;"></div>
-        <button class="btn-primary" id="mlImportBtn" type="button">Upload &amp; Process</button>
+        <button class="btn-primary" id="mlImportBtn" type="button">Preview Import</button>
+
+        <div id="mlImportPreview" style="display:none; margin-top:16px;">
+          <div class="ml-preview-summary" id="mlPreviewSummary"></div>
+          <div class="table-scroll">
+            <table id="mlPreviewTable">
+              <thead>
+                <tr><th>Material</th><th>Description</th><th>UOM</th><th>EAN/UPC</th><th>Result</th></tr>
+              </thead>
+              <tbody id="mlPreviewBody"></tbody>
+            </table>
+          </div>
+          <div class="autofill-note" id="mlPreviewNote" style="margin-top:6px;"></div>
+          <div class="btn-row" style="margin-top:12px;">
+            <button class="btn-secondary" id="mlImportCancelBtn" type="button">Cancel</button>
+            <button class="btn-success" id="mlImportConfirmBtn" type="button">Confirm Import</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -3164,100 +3273,206 @@
       });
     }
 
+    // ---- Import flow: choose file -> Preview Import (dry run, nothing saved) -> Confirm Import ----
+    var ML_BATCH_SIZE = 500;     // rows per request (keeps each call well inside Vercel's time limit)
+    var ML_PREVIEW_ROWS = 10;    // rows of the upload shown in the preview table
+    var mlPendingImport = null;  // {rows: unique-by-EAN rows, inFileDuplicates, counts} held between Preview and Confirm
+
+    function mlSetStatus(text, color) {
+      var el = document.getElementById('mlImportStatus');
+      el.textContent = text;
+      el.style.color = color || '#615880';
+    }
+
+    function mlHidePreview() {
+      mlPendingImport = null;
+      document.getElementById('mlImportPreview').style.display = 'none';
+      document.getElementById('mlPreviewBody').innerHTML = '';
+    }
+
+    // Sends rows to masterlist-import in sequential batches. dryRun=true classifies only (no writes).
+    // Resolves with accumulated totals; on failure the error carries .totals (what was processed so far).
+    function mlRunBatches(rows, dryRun, onProgress) {
+      var batches = [];
+      for (var i = 0; i < rows.length; i += ML_BATCH_SIZE) batches.push(rows.slice(i, i + ML_BATCH_SIZE));
+      var totals = { added: 0, changed: 0, skipped: 0, processed: 0, statuses: {} };
+
+      function step(idx) {
+        if (idx >= batches.length) return Promise.resolve(totals);
+        onProgress(idx + 1, batches.length);
+        return callPost('masterlist-import', { rows: batches[idx], dryRun: !!dryRun }).then(function (result) {
+          totals.added += result.added || 0;
+          totals.changed += result.changed || 0;
+          totals.skipped += result.skipped || 0;
+          totals.processed += batches[idx].length;
+          if (result.statuses) {
+            Object.keys(result.statuses).forEach(function (k) { totals.statuses[k] = result.statuses[k]; });
+          }
+          return step(idx + 1);
+        });
+      }
+      return step(0).catch(function (err) { err.totals = totals; throw err; });
+    }
+
+    var ML_STATUS_LABEL = { 'new': 'New', 'changed': 'Changed', 'duplicate': 'Duplicate' };
+
+    function mlRenderPreview(allRows, uniqueRows, lastIndexByEan, noEanCount, totals) {
+      var inFileDuplicates = allRows.length - uniqueRows.length;
+      var dupTotal = totals.skipped + inFileDuplicates;
+
+      document.getElementById('mlPreviewSummary').innerHTML =
+        '<span class="n-new">' + totals.added + ' new</span>, ' +
+        '<span class="n-changed">' + totals.changed + ' changed</span>, ' +
+        '<span class="n-dup">' + dupTotal + ' duplicates</span>' +
+        '<span class="ml-preview-sub">' + allRows.length + ' row(s) read from the file' +
+        (inFileDuplicates > 0 ? ' (' + inFileDuplicates + ' repeated EAN/UPC within the file)' : '') +
+        (noEanCount > 0 ? '; ' + noEanCount + ' row(s) without an EAN/UPC will be ignored' : '') +
+        '. Nothing has been saved yet.</span>';
+
+      var body = document.getElementById('mlPreviewBody');
+      body.innerHTML = '';
+      allRows.slice(0, ML_PREVIEW_ROWS).forEach(function (r, i) {
+        var status = (lastIndexByEan[r.ean] !== i) ? 'duplicate' : (totals.statuses[r.ean] || 'duplicate');
+        var label = (lastIndexByEan[r.ean] !== i) ? 'Duplicate (repeated in file)' : ML_STATUS_LABEL[status];
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td>' + escapeHtml(r.material) + '</td>' +
+          '<td>' + escapeHtml(r.description) + '</td>' +
+          '<td>' + escapeHtml(r.uom) + '</td>' +
+          '<td>' + escapeHtml(r.ean) + '</td>' +
+          '<td><span class="status-badge ' + status + '">' + label + '</span></td>';
+        body.appendChild(tr);
+      });
+
+      document.getElementById('mlPreviewNote').textContent =
+        'Showing the first ' + Math.min(ML_PREVIEW_ROWS, allRows.length) + ' of ' + allRows.length + ' row(s).' +
+        (totals.added + totals.changed === 0 ? ' Nothing to import - every row is a duplicate.' : '');
+      document.getElementById('mlImportConfirmBtn').disabled = (totals.added + totals.changed === 0);
+      document.getElementById('mlImportPreview').style.display = 'block';
+    }
+
+    // Choosing a different file discards any preview that is on screen.
+    document.getElementById('mlImportFile').addEventListener('change', function () {
+      mlHidePreview();
+      mlSetStatus('');
+    });
+
+    document.getElementById('mlImportCancelBtn').addEventListener('click', function () {
+      mlHidePreview();
+      mlSetStatus('Import cancelled - nothing was saved.');
+    });
+
+    // ---- Step 1: Preview Import ----
     document.getElementById('mlImportBtn').addEventListener('click', function () {
       var fileInput = document.getElementById('mlImportFile');
       var file = fileInput.files && fileInput.files[0];
-      var statusEl = document.getElementById('mlImportStatus');
 
       if (!file) {
-        statusEl.textContent = 'Please choose a file first.';
-        statusEl.style.color = 'var(--danger-dark)';
+        mlSetStatus('Please choose a file first.', 'var(--danger-dark)');
         return;
       }
 
       var btn = this;
+      function resetBtn() { btn.disabled = false; btn.textContent = 'Preview Import'; }
       btn.disabled = true;
-      btn.textContent = 'Processing...';
-      statusEl.textContent = 'Reading file...';
-      statusEl.style.color = '#8577a3';
+      btn.textContent = 'Checking...';
+      mlHidePreview();
+      mlSetStatus('Reading file...');
 
       var reader = new FileReader();
       reader.onload = function (e) {
-        var rows;
+        var mapped;
         try {
           var data = new Uint8Array(e.target.result);
           var workbook = XLSX.read(data, { type: 'array' });
           var sheet = workbook.Sheets[workbook.SheetNames[0]];
           var rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-          rows = mapMlExcelRows(rawRows).filter(function (r) { return r.ean; });
+          mapped = mapMlExcelRows(rawRows);
         } catch (err) {
-          btn.disabled = false;
-          btn.textContent = 'Upload & Process';
-          statusEl.textContent = 'Could not read file: ' + (err && err.message ? err.message : 'unknown error');
-          statusEl.style.color = 'var(--danger-dark)';
+          resetBtn();
+          mlSetStatus('Could not read file: ' + (err && err.message ? err.message : 'unknown error'), 'var(--danger-dark)');
           return;
         }
 
-        if (rows.length === 0) {
-          btn.disabled = false;
-          btn.textContent = 'Upload & Process';
-          statusEl.textContent = 'No valid rows found - check that the file has Material / Material Description / Sales unit / EAN-UPC columns.';
-          statusEl.style.color = 'var(--danger-dark)';
+        var allRows = mapped.filter(function (r) { return r.ean; });
+        var noEanCount = mapped.length - allRows.length;
+        if (allRows.length === 0) {
+          resetBtn();
+          mlSetStatus('No valid rows found - check that the file has Material / Material Description / Sales unit / EAN-UPC columns.', 'var(--danger-dark)');
           return;
         }
 
-        // Large catalog exports can have several thousand rows. Sending
-        // them all in a single request used to time out server-side
-        // partway through (showing up here as "Failed to fetch" with
-        // only a handful of rows actually saved), so the upload is split
-        // into smaller batches and sent sequentially, with the running
-        // totals shown as each batch completes.
-        var BATCH_SIZE = 500;
-        var batches = [];
-        for (var i = 0; i < rows.length; i += BATCH_SIZE) {
-          batches.push(rows.slice(i, i + BATCH_SIZE));
-        }
+        // A repeated EAN/UPC inside the file keeps its LAST occurrence; the earlier ones count as duplicates.
+        var lastIndexByEan = {};
+        allRows.forEach(function (r, i) { lastIndexByEan[r.ean] = i; });
+        var uniqueRows = allRows.filter(function (r, i) { return lastIndexByEan[r.ean] === i; });
 
-        var totals = { added: 0, changed: 0, skipped: 0 };
-
-        function runBatch(index) {
-          if (index >= batches.length) {
-            btn.disabled = false;
-            btn.textContent = 'Upload & Process';
-            statusEl.textContent =
-              totals.added + ' item(s) added, ' + totals.changed + ' item(s) updated, ' +
-              totals.skipped + ' duplicate(s) skipped.';
-            statusEl.style.color = 'var(--success)';
-            fileInput.value = '';
-            refreshMasterList();
-            return;
-          }
-
-          statusEl.textContent = 'Uploading batch ' + (index + 1) + ' of ' + batches.length +
-            ' (' + rows.length + ' row(s) total)...';
-
-          callPost('masterlist-import', { rows: batches[index] })
-            .then(function (result) {
-              totals.added += result.added || 0;
-              totals.changed += result.changed || 0;
-              totals.skipped += result.skipped || 0;
-              runBatch(index + 1);
-            })
-            .catch(function (err) {
-              btn.disabled = false;
-              btn.textContent = 'Upload & Process';
-              statusEl.textContent =
-                'Import failed partway through (after ' + (totals.added + totals.changed + totals.skipped) +
-                ' of ' + rows.length + ' row(s)): ' + (err && err.message ? err.message : 'unknown error') +
-                '. Already-processed rows were saved - you can re-upload the same file to pick up where it stopped, duplicates will just be skipped.';
-              statusEl.style.color = 'var(--danger-dark)';
-              refreshMasterList();
+        // Safety probe: an older deployment of the API has no dry-run mode and would really import.
+        mlSetStatus('Checking server...');
+        callPost('masterlist-import', { rows: [], dryRun: true })
+          .then(function (probe) {
+            if (!probe || probe.dryRun !== true) throw new Error('server-not-updated');
+            return mlRunBatches(uniqueRows, true, function (n, total) {
+              mlSetStatus('Checking batch ' + n + ' of ' + total + ' (' + uniqueRows.length + ' unique row(s))...');
             });
-        }
-
-        runBatch(0);
+          })
+          .then(function (totals) {
+            resetBtn();
+            mlSetStatus('');
+            mlPendingImport = { rows: uniqueRows, inFileDuplicates: allRows.length - uniqueRows.length };
+            mlRenderPreview(allRows, uniqueRows, lastIndexByEan, noEanCount, totals);
+          })
+          .catch(function (err) {
+            resetBtn();
+            // An old API answers the empty probe with "No rows provided" (HTTP 400).
+            if (err && (err.message === 'server-not-updated' || err.message === 'No rows provided')) {
+              mlSetStatus('Preview is not available yet: the server still needs the updated masterlist-import.js (upload it to GitHub and let Vercel redeploy). Nothing was imported.', 'var(--danger-dark)');
+            } else {
+              mlSetStatus('Preview failed: ' + (err && err.message ? err.message : 'unknown error') + '. Nothing was imported.', 'var(--danger-dark)');
+            }
+          });
       };
       reader.readAsArrayBuffer(file);
+    });
+
+    // ---- Step 2: Confirm Import (really saves) ----
+    document.getElementById('mlImportConfirmBtn').addEventListener('click', function () {
+      if (!mlPendingImport) return;
+      var pending = mlPendingImport;
+      var confirmBtn = this;
+      var cancelBtn = document.getElementById('mlImportCancelBtn');
+      var fileInput = document.getElementById('mlImportFile');
+      confirmBtn.disabled = true;
+      cancelBtn.disabled = true;
+      confirmBtn.textContent = 'Importing...';
+
+      function finish() {
+        confirmBtn.textContent = 'Confirm Import';
+        cancelBtn.disabled = false;
+      }
+
+      mlRunBatches(pending.rows, false, function (n, total) {
+        mlSetStatus('Importing batch ' + n + ' of ' + total + ' (' + pending.rows.length + ' unique row(s))...');
+      })
+        .then(function (totals) {
+          finish();
+          mlHidePreview();
+          mlSetStatus(
+            totals.added + ' item(s) added, ' + totals.changed + ' item(s) updated, ' +
+            (totals.skipped + pending.inFileDuplicates) + ' duplicate(s) skipped.', 'var(--success)');
+          fileInput.value = '';
+          refreshMasterList();
+        })
+        .catch(function (err) {
+          finish();
+          confirmBtn.disabled = false;
+          var t = (err && err.totals) || { processed: 0 };
+          mlSetStatus(
+            'Import failed partway through (after ' + t.processed + ' of ' + pending.rows.length + ' unique row(s)): ' +
+            (err && err.message ? err.message : 'unknown error') +
+            '. Rows already processed were saved - run Preview Import again on the same file to see what is left.', 'var(--danger-dark)');
+          refreshMasterList();
+        });
     });
 
     renderPreview();
