@@ -2,7 +2,7 @@ import { sql } from '../lib/db.js';
 import { checkAuth } from '../lib/auth.js';
 import { handlePreflight } from '../lib/cors.js';
 
-// POST /api/masterlist-import { rows: [{material, description, uom, ean}, ...] }
+// POST /api/masterlist-import { rows: [{material, description, uom, ean}, ...], dryRun?: boolean }
 //
 // Matches existing rows by EAN/UPC (the real-world barcode, and the
 // only reliable natural key here - a Material can have several EAN/UPC
@@ -12,17 +12,19 @@ import { handlePreflight } from '../lib/cors.js';
 //     Description differs          -> UPDATE that row in place (changed)
 //   - EAN found, nothing differs   -> leave alone (skipped, duplicate)
 //
+// dryRun: true  -> classify only, write NOTHING. Used by the "Preview Import"
+//   step in Update Masterlist. Also returns `statuses` ({ean: 'new'|'changed'|
+//   'duplicate'}) so the preview table can label rows. A dry run with an empty
+//   rows array is a capability probe: the client calls it first so that an
+//   OLD deployment of this file (which would really import) can never be hit
+//   by a preview.
+//
 // The Excel file itself is parsed client-side (Index.html) and posted
 // here as already-structured rows, since Vercel functions don't handle
-// multipart file uploads out of the box. The client also splits large
-// files into batches before calling this endpoint (see Index.html), but
-// this handler is written to process a whole batch with a FIXED NUMBER
-// of SQL round-trips (3) rather than one round-trip per row, so it no
-// longer times out even on a batch of several thousand rows - the old
-// version did one SELECT + one INSERT/UPDATE per row sequentially,
-// which blew past Vercel's function execution time limit partway
-// through a large catalog export and showed up to the user as
-// "Failed to fetch" with only a handful of rows actually saved.
+// multipart file uploads out of the box. The client splits large files
+// into batches before calling this endpoint, and this handler processes a
+// whole batch with a FIXED NUMBER of SQL round-trips (3) rather than one
+// round-trip per row, so it does not hit Vercel's execution time limit.
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   if (!checkAuth(req, res)) return;
@@ -32,15 +34,22 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { rows } = req.body;
+    const { rows, dryRun } = req.body;
+
+    // Capability probe (see header comment).
+    if (dryRun === true && Array.isArray(rows) && rows.length === 0) {
+      res.status(200).json({ status: 'success', dryRun: true, probe: true });
+      return;
+    }
+
     if (!Array.isArray(rows) || rows.length === 0) {
       res.status(400).json({ status: 'error', message: 'No rows provided' });
       return;
     }
 
     // Normalize and de-dupe within this batch by EAN (last occurrence of
-    // a given EAN in the uploaded file wins, matching what a sequential
-    // row-by-row import would have ended up doing anyway).
+    // a given EAN wins, matching what a sequential row-by-row import would
+    // have ended up doing anyway).
     const byEan = new Map();
     let skipped = 0;
     for (const row of rows) {
@@ -59,7 +68,7 @@ export default async function handler(req, res) {
 
     const uniqueRows = Array.from(byEan.values());
     if (uniqueRows.length === 0) {
-      res.status(200).json({ status: 'success', added: 0, changed: 0, skipped, total: rows.length });
+      res.status(200).json({ status: 'success', dryRun: dryRun === true, added: 0, changed: 0, skipped, total: rows.length, statuses: {} });
       return;
     }
 
@@ -71,24 +80,46 @@ export default async function handler(req, res) {
       SELECT id, ean, material, description FROM master_list
       WHERE ean = ANY(${eans})
     `;
-    const existingByEan = new Map(existingRows.map((r) => [r.ean, r]));
+    // If an EAN has several existing rows, compare against the first (lowest id),
+    // which is also the row an update would touch.
+    const existingByEan = new Map();
+    for (const r of existingRows.slice().sort((a, b) => a.id - b.id)) {
+      if (!existingByEan.has(r.ean)) existingByEan.set(r.ean, r);
+    }
 
     const toInsert = [];
     const toUpdate = [];
+    const statuses = {};
 
     for (const row of uniqueRows) {
       const existing = existingByEan.get(row.ean);
       if (!existing) {
         toInsert.push(row);
+        statuses[row.ean] = 'new';
         continue;
       }
       const materialChanged = (existing.material || '') !== row.material;
       const descriptionChanged = (existing.description || '') !== row.description;
       if (materialChanged || descriptionChanged) {
         toUpdate.push({ id: existing.id, ...row });
+        statuses[row.ean] = 'changed';
       } else {
         skipped++;
+        statuses[row.ean] = 'duplicate';
       }
+    }
+
+    if (dryRun === true) {
+      res.status(200).json({
+        status: 'success',
+        dryRun: true,
+        added: toInsert.length,
+        changed: toUpdate.length,
+        skipped,
+        total: rows.length,
+        statuses,
+      });
+      return;
     }
 
     // Round-trip 2: bulk insert every new EAN in one statement via unnest.
