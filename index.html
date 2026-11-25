@@ -2,6 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
@@ -978,49 +979,12 @@
         left: 0;
         right: 0;
         border-radius: 0;
-        padding: 0 16px 0 62px;
+        padding: 0 16px 0 64px;
         justify-content: center;
       }
-      .app-ready header::after {
-        content: "";
-        position: absolute;
-        left: 14px;
-        top: 50%;
-        width: 36px;
-        height: 36px;
-        transform: translateY(-50%);
-        background: var(--badge-img) center / contain no-repeat;
-      }
-      .app-ready header h1 { font-size: 17px; }
-      .app-ready .header-sub { display: none; }
-      body.app-ready::before { display: none; }
-      .app-ready .sidebar-brand,
-      .app-ready .sidebar-section-label,
-      .app-ready .sidebar-footer { display: none !important; }
-      .app-ready .tab-nav {
-        top: var(--topbar-height);
-        bottom: auto;
-        width: 100%;
-        height: auto;
-        flex-direction: row;
-        gap: 5px;
-        padding: 8px 10px;
-        overflow-x: auto;
-        overflow-y: hidden;
-        box-shadow: 0 3px 12px rgba(33, 24, 76, .1);
-      }
-      .app-ready .tab-nav::before { display: none; }
-      .app-ready .tab-btn {
-        width: auto;
-        min-width: max-content;
-        min-height: 38px;
-        padding: 9px 11px;
-        font-size: 11px;
-      }
-      .app-ready .tab-btn::before { width: auto; margin-right: 5px; }
       .app-ready #mainContent {
         margin-left: 0;
-        margin-top: calc(var(--topbar-height) + 54px);
+        margin-top: var(--topbar-height);
         padding: 16px 12px 32px;
       }
       .card { padding: 16px; border-radius: 11px; }
@@ -1183,8 +1147,6 @@
     }
     @media (max-width: 760px) {
       .app-ready .sidebar-pin-btn { display: none; }
-      .app-ready.sidebar-auto-collapsed .tab-nav,
-      .app-ready.sidebar-pinned .tab-nav { width: 100%; }
       #adminTab .table-scroll { overflow-x: hidden; }
       #adminTable { table-layout: auto; }
       #adminTable th, #adminTable td { font-size: 9px; padding: 6px 3px; }
@@ -1285,6 +1247,106 @@
       font-size: 12.5px;
       min-height: 16px;
       margin-top: 4px;
+    }
+
+
+    /* =========================================================
+       Mobile view (<= 760px): sidebar becomes a slide-in drawer opened by
+       a 3-line (hamburger) button in the header.
+       ========================================================= */
+    .menu-toggle, .menu-backdrop { display: none; }
+    @media (max-width: 760px) {
+      html, body { overflow-x: hidden; }
+      body.app-ready .menu-toggle {
+        display: flex;
+        position: absolute;
+        left: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 5px;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        border: 0;
+        border-radius: 10px;
+        background: rgba(255,255,255,.14);
+        cursor: pointer;
+      }
+      .menu-toggle span {
+        display: block;
+        width: 22px;
+        height: 2.5px;
+        border-radius: 2px;
+        background: #fff;
+        transition: transform .22s ease, opacity .18s ease;
+      }
+      body.menu-open .menu-toggle span:nth-child(1) { transform: translateY(7.5px) rotate(45deg); }
+      body.menu-open .menu-toggle span:nth-child(2) { opacity: 0; }
+      body.menu-open .menu-toggle span:nth-child(3) { transform: translateY(-7.5px) rotate(-45deg); }
+
+      body.app-ready .tab-nav {
+        position: fixed !important;
+        top: 0 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: auto !important;
+        width: min(280px, 82vw) !important;
+        height: auto !important;
+        flex-direction: column !important;
+        gap: 6px;
+        padding: 12px 14px 18px !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+        border-radius: 0 18px 18px 0 !important;
+        z-index: 130 !important;
+        transform: translateX(-105%);
+        visibility: hidden;
+        transition: transform .26s ease, visibility 0s linear .26s;
+        box-shadow: none;
+      }
+      body.app-ready.menu-open .tab-nav {
+        transform: translateX(0);
+        visibility: visible;
+        transition: transform .26s ease, visibility 0s;
+        box-shadow: 8px 0 30px rgba(20, 12, 60, .45);
+      }
+      body.app-ready .tab-nav .sidebar-brand { display: flex !important; margin: 4px 0 14px !important; }
+      body.app-ready .tab-nav .sidebar-section-label { display: block !important; }
+      body.app-ready .tab-nav .sidebar-footer { display: flex !important; }
+      body.app-ready .tab-nav .sidebar-pin-btn { display: none !important; }
+      body.app-ready .tab-nav .brand-text,
+      body.app-ready .tab-nav .krk-badge { display: flex !important; opacity: 1 !important; }
+      body.app-ready .tab-nav .tab-btn {
+        width: 100% !important;
+        min-height: 46px;
+        padding: 12px 14px !important;
+        font-size: 14px !important;
+        justify-content: flex-start;
+      }
+      body.app-ready .tab-nav .tab-badge { display: inline-block; }
+      body.app-ready .menu-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 125;
+        background: rgba(18, 12, 48, .5);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .26s ease;
+      }
+      body.app-ready.menu-open .menu-backdrop { opacity: 1; pointer-events: auto; }
+      body.menu-open { overflow: hidden; }
+
+      /* Touch-friendly forms: 16px stops iOS zooming on focus. */
+      input, select, textarea { font-size: 16px !important; }
+      button { min-height: 40px; }
+      .container { max-width: 100%; }
+      .table-scroll, .report-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .btn-row { flex-wrap: wrap; }
+      .btn-row button { flex: 1 1 140px; }
     }
 
     /* =========================================================
@@ -1420,10 +1482,12 @@
   </div>
 
   <header>
+    <button id="menuToggle" class="menu-toggle" type="button" aria-label="Open menu" aria-controls="tabNav" aria-expanded="false"><span></span><span></span><span></span></button>
     <h1>SHBN - Own Use Log</h1>
     <p class="header-sub">Own use claims &middot; Copy to SAP &middot; Reports</p>
   </header>
 
+  <div class="menu-backdrop" id="menuBackdrop"></div>
   <div class="tab-nav" id="tabNav" style="display:none;">
     <div class="sidebar-brand">
       <span class="brand-badge" role="img" aria-label="Own Use Log icon"></span>
@@ -1551,7 +1615,7 @@
           </div>
         </div>
 
-        <div class="autofill-note">Plant: 1008 &nbsp;|&nbsp; Sloc: 1000 &nbsp;|&nbsp; Cost Center: 10100800 (auto-filled)</div>
+        <div class="autofill-note">Plant: 1008 &nbsp;|&nbsp; Sloc: 2000 &nbsp;|&nbsp; Cost Center: 10100800 (auto-filled)</div>
 
         <div class="btn-row">
           <button class="btn-secondary" id="clearFormBtn" type="button">Clear</button>
@@ -2137,6 +2201,25 @@
       switchTab('entry');
     }
 
+
+    // ---------- Mobile drawer menu ----------
+    (function setupMobileMenu() {
+      var btn = document.getElementById('menuToggle');
+      var backdrop = document.getElementById('menuBackdrop');
+      function setOpen(open) {
+        document.body.classList.toggle('menu-open', open);
+        if (btn) {
+          btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+          btn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+        }
+      }
+      window.closeMobileMenu = function () { setOpen(false); };
+      if (btn) btn.addEventListener('click', function () { setOpen(!document.body.classList.contains('menu-open')); });
+      if (backdrop) backdrop.addEventListener('click', function () { setOpen(false); });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
+      window.addEventListener('resize', function () { if (window.innerWidth > 760) setOpen(false); });
+    })();
+
     // ---------- Sidebar pin / automatic collapse preference ----------
     (function setupSidebarPreference() {
       var pinBtn = document.getElementById('sidebarPinBtn');
@@ -2214,6 +2297,7 @@
 
     // ---------- Tab switching ----------
     function switchTab(tab) {
+      if (window.closeMobileMenu) window.closeMobileMenu();
       // Auto-collapse the sidebar after changing tabs, rather than leaving it expanded
       // because the selected navigation button still has keyboard focus.
       if (document.body.classList.contains('sidebar-auto-collapsed')) {
