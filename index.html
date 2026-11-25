@@ -1472,6 +1472,25 @@
       body.app-ready::before { display: none !important; }
     }
 
+    /* Signature block: print only. */
+    .print-signatures { display: none; }
+    @media print {
+      .print-signatures {
+        display: flex !important;
+        justify-content: space-between;
+        gap: 40px;
+        margin-top: 28px;
+        padding-right: 90px;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .print-signatures .sig-box { width: 42%; font-size: 12px; color: #000; }
+      .print-signatures .sig-title { font-weight: 600; }
+      .print-signatures .sig-space { height: 56px; }
+      .print-signatures .sig-line { border-top: 1.5px solid #000; margin-bottom: 6px; }
+      .print-signatures .sig-field { margin: 3px 0; }
+    }
+
   </style>
 </head>
 <body>
@@ -1749,10 +1768,14 @@
 
         <div class="row2" id="reportControls" style="align-items:end;">
           <div class="field" style="margin-bottom:0;">
-            <label>Month</label>
-            <input type="month" id="reportMonth">
+            <label>From</label>
+            <input type="date" id="reportFrom">
           </div>
-          <div style="text-align:right; display:flex; gap:8px; justify-content:flex-end;">
+          <div class="field" style="margin-bottom:0;">
+            <label>To</label>
+            <input type="date" id="reportTo">
+          </div>
+          <div class="report-actions" style="text-align:right; display:flex; gap:8px; justify-content:flex-end; grid-column: 1 / -1;">
             <button class="btn-secondary" id="printReportBtn" type="button" style="display:none;">Print</button>
             <button class="btn-primary" id="runReportBtn" type="button">Run</button>
           </div>
@@ -1785,7 +1808,27 @@
             </thead>
             <tbody id="reportBody"></tbody>
           </table>
-          <div class="preview-empty" id="reportEmpty">Select a month and tap Run to generate a report.</div>
+          <div class="preview-empty" id="reportEmpty">Select a date range and tap Run to generate a report.</div>
+        </div>
+
+        <!-- Print only: signature block at the bottom of the report. -->
+        <div class="print-signatures">
+          <div class="sig-box">
+            <div class="sig-title">Prepare By,</div>
+            <div class="sig-space"></div>
+            <div class="sig-line"></div>
+            <div class="sig-field">Name :</div>
+            <div class="sig-field">Position :</div>
+            <div class="sig-field">Date :</div>
+          </div>
+          <div class="sig-box">
+            <div class="sig-title">Checked By,</div>
+            <div class="sig-space"></div>
+            <div class="sig-line"></div>
+            <div class="sig-field">Name :</div>
+            <div class="sig-field">Position :</div>
+            <div class="sig-field">Date :</div>
+          </div>
         </div>
       </div>
     </div>
@@ -3041,18 +3084,40 @@
     // ========================= SUMMARY REPORT TAB ========================
     // ==================================================================
 
-    // Default the month picker to the current month, in Asia/Kuala_Lumpur.
-    (function initReportMonth() {
+    // Default the range to the 1st of the current month -> today, in Asia/Kuala_Lumpur.
+    (function initReportRange() {
       var now = new Date();
       var kl = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kuala_Lumpur' }));
       var yyyy = kl.getFullYear();
       var mm = String(kl.getMonth() + 1).padStart(2, '0');
-      document.getElementById('reportMonth').value = yyyy + '-' + mm;
+      var dd = String(kl.getDate()).padStart(2, '0');
+      document.getElementById('reportFrom').value = yyyy + '-' + mm + '-01';
+      document.getElementById('reportTo').value = yyyy + '-' + mm + '-' + dd;
     })();
 
+    // Entry dates look like "26.9.2026 9.45AM" (d.m.yyyy). Returns yyyymmdd as a number.
+    function reportDateKey(str) {
+      var m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(String(str || '').trim());
+      if (!m) return null;
+      return Number(m[3]) * 10000 + Number(m[2]) * 100 + Number(m[1]);
+    }
+
     document.getElementById('runReportBtn').addEventListener('click', function () {
-      var month = document.getElementById('reportMonth').value;
-      if (!month) { alert('Please select a month.'); return; }
+      var from = document.getElementById('reportFrom').value;
+      var to = document.getElementById('reportTo').value;
+      if (!from || !to) { alert('Please select both From and To dates.'); return; }
+      if (from > to) { alert('"From" date cannot be after "To" date.'); return; }
+
+      // The API reports one month at a time, so fetch every month the range
+      // touches and then keep only the entries inside the range.
+      var months = [];
+      var y = Number(from.slice(0, 4)), mo = Number(from.slice(5, 7));
+      var endY = Number(to.slice(0, 4)), endM = Number(to.slice(5, 7));
+      while (y < endY || (y === endY && mo <= endM)) {
+        months.push(y + '-' + String(mo).padStart(2, '0'));
+        mo++; if (mo > 12) { mo = 1; y++; }
+      }
+      if (months.length > 24) { alert('Please choose a range of 24 months or less.'); return; }
 
       var btn = this;
       btn.disabled = true;
@@ -3063,11 +3128,24 @@
       document.getElementById('reportEmpty').textContent = 'Loading...';
       document.getElementById('reportEmpty').style.display = 'block';
 
-      callGet('summary-report?month=' + encodeURIComponent(month))
-        .then(function (result) {
+      var fromKey = Number(from.replace(/-/g, '')), toKey = Number(to.replace(/-/g, ''));
+      Promise.all(months.map(function (m) { return callGet('summary-report?month=' + encodeURIComponent(m)); }))
+        .then(function (results) {
           btn.disabled = false;
           btn.textContent = 'Run';
-          renderReport(result, month);
+          var entries = [];
+          results.forEach(function (r) { (r.entries || []).forEach(function (e) { entries.push(e); }); });
+          entries = entries.filter(function (e) {
+            var k = reportDateKey(e.date);
+            return k !== null && k >= fromKey && k <= toKey;
+          });
+          var completed = entries.filter(function (e) { return e.status === 'Completed'; }).length;
+          renderReport({
+            entries: entries,
+            totalCount: entries.length,
+            completedCount: completed,
+            pendingCount: entries.length - completed
+          }, from, to);
         })
         .catch(function (err) {
           btn.disabled = false;
@@ -3082,7 +3160,12 @@
       window.print();
     });
 
-    function renderReport(result, month) {
+    function formatReportDate(iso) {
+      var p = iso.split('-');
+      return p[2] + '/' + p[1] + '/' + p[0];
+    }
+
+    function renderReport(result, from, to) {
       var body = document.getElementById('reportBody');
       var empty = document.getElementById('reportEmpty');
       var summary = document.getElementById('reportSummary');
@@ -3094,15 +3177,8 @@
       document.getElementById('reportPendingCount').textContent = result.pendingCount;
       summary.style.display = 'block';
 
-      // Print-only header: month, generated-at timestamp, and the same
-      // stats shown as plain text so they survive onto paper.
-      var monthLabel = month;
-      try {
-        var parts = month.split('-');
-        var monthDate = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
-        monthLabel = monthDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-      } catch (e) { /* fall back to raw YYYY-MM */ }
-      document.getElementById('printReportMonthLabel').textContent = monthLabel;
+      document.getElementById('printReportMonthLabel').textContent =
+        'Period: ' + formatReportDate(from) + ' to ' + formatReportDate(to);
       document.getElementById('printReportGeneratedLabel').textContent =
         'Generated ' + new Date().toLocaleString('en-GB', {
           day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
@@ -3113,7 +3189,7 @@
         '<span><b>' + result.pendingCount + '</b> Pending</span>';
 
       if (!result.entries || result.entries.length === 0) {
-        empty.textContent = 'No entries found for this month.';
+        empty.textContent = 'No entries found for this date range.';
         empty.style.display = 'block';
         printBtn.style.display = 'none';
         return;
